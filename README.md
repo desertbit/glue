@@ -70,10 +70,10 @@ Get the source and start hacking.
 `go get github.com/desertbit/glue`
 
 
-## Exsample
+## Example
 
 This socket library is very straightforward to use.
-Check the sample directory for another exsample.
+Check the sample directory for another example.
 
 
 ### Client
