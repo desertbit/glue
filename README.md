@@ -1,6 +1,7 @@
 # Glue - Robust Go and Javascript Socket Library
 
-Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **effecient** alternative to socket.io. This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one.
+Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **effecient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections.
+The server implementation is thread-safe.
 
 
 ## Socket layers
@@ -14,6 +15,45 @@ Currently two socket layers are supported:
 ## Support
 
 Feel free to contribute to this project. Please check the [TODO](TODO.md) file for more information.
+
+
+## Documentation 
+
+Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
+
+Optional Javascript options which can be passed to Glue.
+
+```js
+var host = "https://foo.bar";
+
+var opts = {
+    // Force a socket type.
+    // Values: false, "WebSocket", "AjaxSocket"
+    forceSocketType: false,
+
+    // Kill the connect attempt after the timeout.
+    connectTimeout:  10000,
+
+    // If the connection is idle, ping the server to check if the connection is stil alive.
+    pingInterval:           35000,
+    // Reconnect if the server did not response with a pong within the timeout.
+    pingReconnectTimeout:   5000,
+
+    // Whenever to automatically reconnect if the connection was lost.
+    reconnected:        true,
+    reconnectDelay:     1000,
+    reconnectDelayMax:  5000,
+    // To disable set to 0 (endless).
+    reconnectAttempts:  10,
+
+    // Reset the send buffer after the timeout.
+    resetSendBufferTimeout: 7000 
+};
+
+// Create and connect to the server.
+// Optional pass a host string and options.
+var socket = glue(host, opts);
+```
 
 
 ## Install
@@ -41,7 +81,7 @@ Check the sample directory for another exsample.
 ```html
 <script>
 	// Create and connect to the server.
-	// Optional pass options.
+	// Optional pass a host string and options.
 	var socket = glue();
 
     socket.onMessage(function(data) {
@@ -92,35 +132,35 @@ Check the sample directory for another exsample.
 ### Server
 
 ```go
-	package main
+package main
 
-	import (
-		"log"
-		"net/http"
+import (
+	"log"
+	"net/http"
 
-		"github.com/desertbit/glue"
-	)
+	"github.com/desertbit/glue"
+)
 
-	const (
-		ListenAddress = ":8888"
-	)
+const (
+	ListenAddress = ":8888"
+)
 
-	func main() {
-		// Set the glue event function.
-		glue.OnNewSocket(onNewSocket)
+func main() {
+	// Set the glue event function.
+	glue.OnNewSocket(onNewSocket)
 
-		// Start the http server.
-		err := http.ListenAndServe(ListenAddress, nil)
-		if err != nil {
-			log.Fatalf("ListenAndServe: %v", err)
-		}
+	// Start the http server.
+	err := http.ListenAndServe(ListenAddress, nil)
+	if err != nil {
+		log.Fatalf("ListenAndServe: %v", err)
 	}
+}
 
-	func onNewSocket(s *glue.Socket) {
-		s.OnRead(func(data string) {
-			log.Println("received: ", data)
-		})
+func onNewSocket(s *glue.Socket) {
+	s.OnRead(func(data string) {
+		log.Println("received: ", data)
+	})
 
-		s.Write("Hello World")
-	}
+	s.Write("Hello World")
+}
 ```
