@@ -164,3 +164,7 @@ func onNewSocket(s *glue.Socket) {
 	s.Write("Hello World")
 }
 ```
+
+## Similar Go Projects
+
+- [go-socket.io](https://github.com/googollee/go-socket.io) - socket.io library for golang, a realtime application framework.
