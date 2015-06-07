@@ -8,7 +8,7 @@ The server implementation is **thread-safe**.
 
 Currently two socket layers are supported:
 
-- **WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined after [RFC 6455](https://tools.ietf.org/html/rfc6455).
+- **WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined by [RFC 6455](https://tools.ietf.org/html/rfc6455).
 - **AjaxSockets** - This socket layer is used as a fallback mode.
 
 
