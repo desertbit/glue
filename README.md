@@ -69,6 +69,11 @@ Get the source and start hacking.
 
 `go get github.com/desertbit/glue`
 
+Import it with:
+
+```go
+import "github.com/desertbit/glue"
+```
 
 ## Example
 
