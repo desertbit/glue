@@ -13,7 +13,7 @@
   "license": "Apache-2.0",
   "ignore": [
     "**/*",
-    "!client",
+    "!client/*",
     "node_modules",
     "bower_components",
     "test",
