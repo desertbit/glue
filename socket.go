@@ -21,10 +21,12 @@
 package glue
 
 import (
+	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/desertbit/glue/backend"
+	"github.com/desertbit/glue/log"
 )
 
 const (
@@ -184,7 +186,16 @@ func (s *Socket) onClose() {
 
 	// Trigger the on close event if defined.
 	if s.onCloseFunc != nil {
-		s.onCloseFunc()
+		func() {
+			// Recover panics and log the error.
+			defer func() {
+				if e := recover(); e != nil {
+					log.L.Errorf("glue: panic while calling on error function: %v\n%s", e, debug.Stack())
+				}
+			}()
+
+			s.onCloseFunc()
+		}()
 	}
 }
 
@@ -295,8 +306,17 @@ func (s *Socket) readLoop() {
 				// Close the socket.
 				s.bs.Close()
 			case cmdData:
-				// Trigger the on read event function.
-				s.onRead(data)
+				func() {
+					// Recover panics and log the error.
+					defer func() {
+						if e := recover(); e != nil {
+							log.L.Errorf("glue: panic while calling on read function: %v\n%s", e, debug.Stack())
+						}
+					}()
+
+					// Trigger the on read event function.
+					s.onRead(data)
+				}()
 			default:
 				// Send an invalid command response.
 				s.write(cmdInvalid)
@@ -342,6 +362,15 @@ func onNewSocketConnection(bs backend.BackendSocket) {
 	// Create a new socket value.
 	s := newSocket(bs)
 
-	// Trigger the on new socket event function.
-	onNewSocket(s)
+	func() {
+		// Recover panics and log the error.
+		defer func() {
+			if e := recover(); e != nil {
+				log.L.Errorf("glue: panic while calling on new socket function: %v\n%s", e, debug.Stack())
+			}
+		}()
+
+		// Trigger the on new socket event function.
+		onNewSocket(s)
+	}()
 }
