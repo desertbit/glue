@@ -63,6 +63,10 @@ var socket = glue(host, opts);
 The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**.
 It requires jQuery.
 
+You can use bower to install the client library:
+
+`bower install --save glue-socket`
+
 ### Server
 
 Get the source and start hacking.
