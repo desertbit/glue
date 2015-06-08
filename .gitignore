@@ -3,5 +3,6 @@
 ._.DS_Store
 sample/sample
 tmp
+bower_components
 client/node_modules
 client/bower_components

@@ -1,0 +1,25 @@
+{
+  "name": "glue",
+  "version": "1.0.0",
+  "homepage": "https://github.com/desertbit/glue",
+  "authors": [
+    "Roland Singer <roland.singer@desertbit.com>"
+  ],
+  "description": "Robust Go and Javascript Socket Library",
+  "main": "[\"client\"]",
+  "keywords": [
+    "[\"socket\"]"
+  ],
+  "license": "Apache-2.0",
+  "ignore": [
+    "**/*",
+    "!client",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.4"
+  }
+}
