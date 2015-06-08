@@ -21,6 +21,10 @@ package backend
 
 const (
 	httpBaseSocketUrl = "/glue/"
+
+	// Channel buffer sizes:
+	readChanSize  = 5
+	writeChanSize = 10
 )
 
 var (
@@ -51,7 +55,6 @@ const (
 //################################//
 
 type OnCloseFunc func()
-type OnReadFunc func(data string)
 
 type BackendSocket interface {
 	Type() SocketType
@@ -62,8 +65,8 @@ type BackendSocket interface {
 	IsClosed() bool
 	OnClose(OnCloseFunc)
 
-	Write(data string)
-	OnRead(OnReadFunc)
+	WriteChan() chan string
+	ReadChan() chan string
 }
 
 //##############//
@@ -74,4 +77,14 @@ type BackendSocket interface {
 // triggered if a new socket connection was made.
 func OnNewSocketConnection(f func(BackendSocket)) {
 	onNewSocketConnection = f
+}
+
+//###############//
+//### Private ###//
+//###############//
+
+func triggerOnNewSocketConnection(bs BackendSocket) {
+	// Trigger the on new socket connection event in a new goroutine
+	// to not block any socket functions. Otherwise this might block HTTP handlers.
+	go onNewSocketConnection(bs)
 }

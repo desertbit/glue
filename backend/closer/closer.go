@@ -25,6 +25,9 @@ import (
 )
 
 type Closer struct {
+	// Channel which is closed if the closer is closed.
+	IsClosedChan chan struct{}
+
 	f        func()
 	isClosed bool
 	mutex    sync.Mutex
@@ -34,7 +37,8 @@ type Closer struct {
 // The passed function is emitted only once, as soon close is called.
 func New(f func()) *Closer {
 	return &Closer{
-		f: f,
+		IsClosedChan: make(chan struct{}),
+		f:            f,
 	}
 }
 
@@ -55,6 +59,9 @@ func (c *Closer) Close() {
 
 	// Unlock the mutex again
 	c.mutex.Unlock()
+
+	// Close the channel.
+	close(c.IsClosedChan)
 
 	// Emit the function.
 	c.f()

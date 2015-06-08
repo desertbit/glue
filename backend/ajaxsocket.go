@@ -64,37 +64,27 @@ func init() {
 //#######################//
 
 type ajaxSocket struct {
-	uid       string
-	pollToken string
-
+	uid        string
+	pollToken  string
 	userAgent  string
 	remoteAddr string
 
-	closer *closer.Closer
-
-	writeChannel chan string
-	stopPoll     chan struct{}
-
+	closer  *closer.Closer
 	onClose OnCloseFunc
-	onRead  OnReadFunc
+
+	writeChan chan string
+	readChan  chan string
 }
 
 // Create a new ajax socket.
 func newAjaxSocket() *ajaxSocket {
 	a := &ajaxSocket{
-		writeChannel: make(chan string, 3),
-		stopPoll:     make(chan struct{}),
-
-		// Set a dummy function to not always
-		// check if the method is not set.
-		onRead: func(string) {},
+		writeChan: make(chan string, writeChanSize),
+		readChan:  make(chan string, readChanSize),
 	}
 
 	// Set the closer function.
 	a.closer = closer.New(func() {
-		// Stop the polling goroutine if present.
-		close(a.stopPoll)
-
 		// Remove the ajax socket from the map.
 		if len(a.uid) > 0 {
 			ajaxMutex.Lock()
@@ -139,13 +129,12 @@ func (a *ajaxSocket) IsClosed() bool {
 	return a.closer.IsClosed()
 }
 
-func (a *ajaxSocket) Write(data string) {
-	// Write the data to the channel.
-	a.writeChannel <- data
+func (a *ajaxSocket) WriteChan() chan string {
+	return a.writeChan
 }
 
-func (a *ajaxSocket) OnRead(f OnReadFunc) {
-	a.onRead = f
+func (a *ajaxSocket) ReadChan() chan string {
+	return a.readChan
 }
 
 //############################//
@@ -273,7 +262,7 @@ func initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
 	io.WriteString(w, uid+ajaxSocketDataDelimiter+a.pollToken)
 
 	// Trigger the event that a new socket connection was made.
-	onNewSocketConnection(a)
+	triggerOnNewSocketConnection(a)
 }
 
 func pushAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
@@ -331,8 +320,8 @@ func pushAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWri
 	// Update the remote address. The client might be behind a proxy.
 	a.remoteAddr = remoteAddr
 
-	// Trigger the onRead event function.
-	a.onRead(data)
+	// Write the received data to the read channel.
+	a.readChan <- data
 }
 
 func pollAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
@@ -403,16 +392,15 @@ func pollAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWri
 
 	// Send messages as soon as there are some available.
 	select {
-	case data := <-a.writeChannel:
+	case data := <-a.writeChan:
 		// Send the new poll token and message data to the client.
 		io.WriteString(w, a.pollToken+ajaxSocketDataDelimiter+data)
 	case <-timeout.C:
 		// Do nothing on timeout
 		// Just release this goroutine.
 		return
-	case <-a.stopPoll:
-		// Do nothing on timeout
-		// Just release this go routine
+	case <-a.closer.IsClosedChan:
+		// Just release this goroutine.
 		return
 	}
 }

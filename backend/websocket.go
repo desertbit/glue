@@ -63,24 +63,24 @@ func init() {
 //######################//
 
 type webSocket struct {
-	ws     *websocket.Conn
-	closer *closer.Closer
+	ws *websocket.Conn
+
+	closer  *closer.Closer
+	onClose OnCloseFunc
+
+	writeChan chan string
+	readChan  chan string
 
 	userAgent      string
 	remoteAddrFunc func() string
-
-	onClose OnCloseFunc
-	onRead  OnReadFunc
 }
 
 // Create a new websocket type.
 func newWebSocket(ws *websocket.Conn) *webSocket {
 	w := &webSocket{
-		ws: ws,
-
-		// Set a dummy function to not always
-		// check if the method is not set.
-		onRead: func(string) {},
+		ws:        ws,
+		writeChan: make(chan string, writeChanSize),
+		readChan:  make(chan string, readChanSize),
 	}
 
 	// Set the closer function.
@@ -129,21 +129,12 @@ func (w *webSocket) IsClosed() bool {
 	return w.closer.IsClosed()
 }
 
-func (w *webSocket) Write(data string) {
-	err := w.write(websocket.TextMessage, []byte(data))
-	if err != nil {
-		log.L.WithFields(logrus.Fields{
-			"remoteAddress": w.RemoteAddr(),
-			"userAgent":     w.UserAgent(),
-		}).Warningf("failed to write to websocket: %v", err)
-
-		// Close the websocket on error
-		w.Close()
-	}
+func (w *webSocket) WriteChan() chan string {
+	return w.writeChan
 }
 
-func (w *webSocket) OnRead(f OnReadFunc) {
-	w.onRead = f
+func (w *webSocket) ReadChan() chan string {
+	return w.readChan
 }
 
 //###########################//
@@ -163,21 +154,21 @@ func (w *webSocket) readLoop() {
 		w.Close()
 	}()
 
-	// Set the limits
+	// Set the limits.
 	w.ws.SetReadLimit(maxMessageSize)
 
-	// Set the pong handler
+	// Set the pong handler.
 	w.ws.SetPongHandler(func(string) error {
-		// Reset the read deadline
+		// Reset the read deadline.
 		w.ws.SetReadDeadline(time.Now().Add(readWait))
 		return nil
 	})
 
 	for {
-		// Reset the read deadline
+		// Reset the read deadline.
 		w.ws.SetReadDeadline(time.Now().Add(readWait))
 
-		// Read from the websocket
+		// Read from the websocket.
 		_, data, err := w.ws.ReadMessage()
 		if err != nil {
 			// Only log errors if this is not EOF and
@@ -191,8 +182,32 @@ func (w *webSocket) readLoop() {
 			return
 		}
 
-		// Trigger the onRead function.
-		w.onRead(string(data))
+		// Write the received data to the read channel.
+		w.readChan <- string(data)
+	}
+}
+
+func (w *webSocket) writeLoop() {
+	for {
+		select {
+		case data := <-w.writeChan:
+			// Write the data to the websocket.
+			err := w.write(websocket.TextMessage, []byte(data))
+			if err != nil {
+				log.L.WithFields(logrus.Fields{
+					"remoteAddress": w.RemoteAddr(),
+					"userAgent":     w.UserAgent(),
+				}).Warningf("failed to write to websocket: %v", err)
+
+				// Close the websocket on error.
+				w.Close()
+				return
+			}
+
+		case <-w.closer.IsClosedChan:
+			// Just release this loop.
+			return
+		}
 	}
 }
 
@@ -251,9 +266,10 @@ func handleWebSocket(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// Start to read messages from the websocket in a new goroutine.
+	// Start the handlers in new goroutines.
+	go w.writeLoop()
 	go w.readLoop()
 
 	// Trigger the event that a new socket connection was made.
-	onNewSocketConnection(w)
+	triggerOnNewSocketConnection(w)
 }

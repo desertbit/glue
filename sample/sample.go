@@ -54,5 +54,9 @@ func onNewSocket(s *glue.Socket) {
 		s.Write(data)
 	})
 
-	s.Write("Hello World")
+	s.OnClose(func() {
+		println("closed")
+	})
+
+	s.Write("Hello Client")
 }

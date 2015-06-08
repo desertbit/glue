@@ -27,7 +27,7 @@ var newAjaxSocket = function () {
      */
 
     var ajaxHost = host + "/glue/ajax",
-        sendTimeout = 7000,
+        sendTimeout = 8000,
         pollTimeout = 45000;
 
     var Commands = {
@@ -46,7 +46,8 @@ var newAjaxSocket = function () {
     var s = {},
         uid, pollToken,
         pollXhr = false,
-        sendXhr = false;
+        sendXhr = false,
+        poll;
 
 
 
@@ -55,6 +56,10 @@ var newAjaxSocket = function () {
      */
 
     var stopRequests = function() {
+        // Set the poll function to a dummy function.
+        // This will prevent further poll calls.
+        poll = function() {};
+
         // Kill the ajax requests.
         if (pollXhr) {
             pollXhr.abort();
@@ -101,7 +106,7 @@ var newAjaxSocket = function () {
         });
     };
 
-    var poll = function () {
+    poll = function () {
         pollXhr = $.ajax({
             url: ajaxHost,
             success: function (data) {

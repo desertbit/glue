@@ -9,7 +9,7 @@
 	<h1>Glue Socket Test</h1>
 
 	<script>
-		var socket = glue();
+		var socket = glue("");
 
         socket.onMessage(function(data) {
             console.log("onMessage: " + data);
@@ -18,7 +18,7 @@
 
         socket.on("connected", function() {
             console.log("connected");
-            socket.send("Hello server");
+            socket.send("Hello Server");
         });
 
         socket.on("connecting", function() {

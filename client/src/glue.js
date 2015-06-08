@@ -39,7 +39,8 @@ var glue = function(host, options) {
         Len: 	  1,
         Ping:    'i',
         Pong:    'o',
-        Data: 	 'd',
+        Data:    'd',
+        Close: 	 'c',
         Invalid: 'z'
     };
 
@@ -516,6 +517,11 @@ var glue = function(host, options) {
             // Check if the socket exists.
             if (!bs) {
                 return;
+            }
+
+            // Notify the server.
+            if (currentState === States.Connected) {
+                bs.send(Commands.Close);
             }
 
             // Reset the socket.
