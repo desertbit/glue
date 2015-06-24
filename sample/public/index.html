@@ -9,8 +9,20 @@
 <body>
 	<h1>Glue Socket Test</h1>
 
+    <button id="b1">Button</button>
+
 	<script>
-		var socket = glue("");
+        $("#b1").click(function() {
+            alert("Hallo Welt");
+        });
+
+
+
+
+
+
+
+		var socket = glue();
 
         socket.onMessage(function(data) {
             console.log("onMessage: " + data);

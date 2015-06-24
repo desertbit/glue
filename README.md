@@ -1,6 +1,6 @@
 # Glue - Robust Go and Javascript Socket Library
 
-Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **effecient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections.
+Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **efficient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections.
 The server implementation is **thread-safe**.
 
 
