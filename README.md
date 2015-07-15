@@ -142,6 +142,10 @@ Check the sample directory for another example.
 
 ### Server
 
+**Note:** If the socket Read method is not used, the socket read buffer will block as soon as it is full!
+Always read from the socket or call the DiscardRead method once during initialization to disable reads from the socket.
+
+
 ```go
 package main
 

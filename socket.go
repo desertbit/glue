@@ -74,9 +74,11 @@ type OnCloseFunc func()
 type Socket struct {
 	bs backend.BackendSocket
 
-	writeChan     chan string
-	readChan      chan string
+	writeChan chan string
+	readChan  chan string
+
 	finalReadChan chan string
+	isClosedChan  chan struct{}
 
 	onCloseFunc OnCloseFunc
 
@@ -84,8 +86,6 @@ type Socket struct {
 	pingTimeout       *time.Timer
 	sendPingMutex     sync.Mutex
 	pingRequestActive bool
-
-	isClosedChan chan struct{}
 }
 
 // newSocket creates a new socket and initializes it.
@@ -96,11 +96,10 @@ func newSocket(bs backend.BackendSocket) *Socket {
 		writeChan:     bs.WriteChan(),
 		readChan:      bs.ReadChan(),
 		finalReadChan: make(chan string, readChanBuffer),
+		isClosedChan:  make(chan struct{}),
 
 		pingTimer:   time.NewTimer(pingPeriod),
 		pingTimeout: time.NewTimer(pingResponseTimeout),
-
-		isClosedChan: make(chan struct{}),
 	}
 
 	// Set the event functions.
@@ -181,6 +180,26 @@ func (s *Socket) Read(timeout ...time.Duration) (string, error) {
 		// Return an error.
 		return "", ErrReadTimeout
 	}
+}
+
+// DiscardRead ignores and discars the data received from the client.
+// Call this method only once during initialization, if you don't read any data from
+// the socket. If received data is not discarded, then the read buffer will block as soon
+// as it is full, which will also block the keep-alive mechanism of the socket. The result
+// would be a closed socket...
+func (s *Socket) DiscardRead() {
+	go func() {
+		for {
+			select {
+			case <-s.finalReadChan:
+				// Don't do anything.
+				// Just discard the data.
+			case <-s.isClosedChan:
+				// Release this goroutine.
+				return
+			}
+		}
+	}()
 }
 
 //##############################//
