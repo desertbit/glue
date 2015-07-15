@@ -21,6 +21,7 @@
 package glue
 
 import (
+	"errors"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -32,8 +33,12 @@ import (
 const (
 	// Send pings to the peer with this period.
 	pingPeriod = 30 * time.Second
+
 	// Kill the socket after this timeout.
 	pingResponseTimeout = 7 * time.Second
+
+	// The channel buffer size for received data.
+	readChanBuffer = 2
 
 	// Socket commands. Only one character.
 	cmdLen     = 1
@@ -42,6 +47,12 @@ const (
 	cmdData    = "d"
 	cmdClose   = "c"
 	cmdInvalid = "z"
+)
+
+// Public errors:
+var (
+	ErrSocketClosed = errors.New("the socket connection is closed.")
+	ErrReadTimeout  = errors.New("the read timeout was reached.")
 )
 
 var (
@@ -55,7 +66,6 @@ var (
 
 type OnNewSocketFunc func(s *Socket)
 type OnCloseFunc func()
-type OnReadFunc func(data string)
 
 //###################//
 //### Socket Type ###//
@@ -64,10 +74,10 @@ type OnReadFunc func(data string)
 type Socket struct {
 	bs backend.BackendSocket
 
-	writeChan chan string
-	readChan  chan string
+	writeChan     chan string
+	readChan      chan string
+	finalReadChan chan string
 
-	onRead      OnReadFunc
 	onCloseFunc OnCloseFunc
 
 	pingTimer         *time.Timer
@@ -82,13 +92,10 @@ type Socket struct {
 func newSocket(bs backend.BackendSocket) *Socket {
 	// Create a new socket value.
 	s := &Socket{
-		bs:        bs,
-		writeChan: bs.WriteChan(),
-		readChan:  bs.ReadChan(),
-
-		// Set a dummy function to not always
-		// check if the method is not set.
-		onRead: func(string) {},
+		bs:            bs,
+		writeChan:     bs.WriteChan(),
+		readChan:      bs.ReadChan(),
+		finalReadChan: make(chan string, readChanBuffer),
 
 		pingTimer:   time.NewTimer(pingPeriod),
 		pingTimeout: time.NewTimer(pingResponseTimeout),
@@ -141,10 +148,39 @@ func (s *Socket) Write(data string) {
 	s.write(cmdData + data)
 }
 
-// OnRead sets the function which is triggered if new data is received.
-func (s *Socket) OnRead(f OnReadFunc) {
-	// Set the on read function.
-	s.onRead = f
+// Read the next message from the socket. This method is blocking.
+// One variadic argument sets a timeout duration.
+// If no timeout is specified, this method will block forever.
+// ErrSocketClosed is returned, if the socket connection is closed.
+// ErrReadTimeout is returned, if the timeout is reached.
+func (s *Socket) Read(timeout ...time.Duration) (string, error) {
+	timeoutChan := make(chan (struct{}))
+
+	// Create a timeout timer if a timeout is specified.
+	if len(timeout) > 0 && timeout[0] > 0 {
+		timer := time.AfterFunc(timeout[0], func() {
+			// Trigger the timeout by closing the channel.
+			close(timeoutChan)
+		})
+
+		// Always stop the timer on defer.
+		defer func() {
+			timer.Stop()
+		}()
+	}
+
+	select {
+	case data := <-s.finalReadChan:
+		return data, nil
+	case <-s.isClosedChan:
+		// The connection was closed.
+		// Return an error.
+		return "", ErrSocketClosed
+	case <-timeoutChan:
+		// The timeout was reached.
+		// Return an error.
+		return "", ErrReadTimeout
+	}
 }
 
 //##############################//
@@ -306,17 +342,8 @@ func (s *Socket) readLoop() {
 				// Close the socket.
 				s.bs.Close()
 			case cmdData:
-				func() {
-					// Recover panics and log the error.
-					defer func() {
-						if e := recover(); e != nil {
-							log.L.Errorf("glue: panic while calling on read function: %v\n%s", e, debug.Stack())
-						}
-					}()
-
-					// Trigger the on read event function.
-					s.onRead(data)
-				}()
+				// Send the data to the final read channel.
+				s.finalReadChan <- data
 			default:
 				// Send an invalid command response.
 				s.write(cmdInvalid)
