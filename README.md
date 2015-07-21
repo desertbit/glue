@@ -84,7 +84,7 @@ import "github.com/desertbit/glue"
 ## Example
 
 This socket library is very straightforward to use.
-Check the sample directory for another example.
+Check the sample directory for more examples.
 
 
 ### Client
