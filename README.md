@@ -140,10 +140,12 @@ Check the sample directory for another example.
 </script>
 ```
 
+
 ### Server
 
-**Note:** If the socket Read method is not used, the socket read buffer will block as soon as it is full!
-Always read from the socket or call the DiscardRead method once during initialization to disable reads from the socket.
+#### Read Event
+
+Read data from the socket with a read event function.
 
 
 ```go
@@ -152,6 +154,56 @@ package main
 import (
     "log"
     "net/http"
+    "runtime"
+
+    "github.com/desertbit/glue"
+)
+
+const (
+    ListenAddress = ":8888"
+)
+
+func main() {
+    // Set the glue event function.
+    glue.OnNewSocket(onNewSocket)
+
+    // Start the http server.
+    err := http.ListenAndServe(ListenAddress, nil)
+    if err != nil {
+        log.Fatalf("ListenAndServe: %v", err)
+    }
+}
+
+func onNewSocket(s *glue.Socket) {
+    // Set a function which is triggered as soon as the socket is closed.
+    s.OnClose(func() {
+        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+    })
+
+    // Set a function which is triggered during each received message.
+    s.OnRead(func(data string) {
+        // Echo the received data back to the client.
+        s.Write(data)
+    })
+
+    // Send a welcome string to the client.
+    s.Write("Hello Client")
+}
+
+```
+
+#### Read Write
+
+Read data from the socket within a loop.
+
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "runtime"
 
     "github.com/desertbit/glue"
 )
@@ -203,7 +255,59 @@ func readLoop(s *glue.Socket) {
         s.Write(data)
     }
 }
+
 ```
+
+#### Only Write - Discard Read
+
+Ignore data received from the client.
+
+**Note:** If received data is not discarded, then the read buffer will block as soon as it is full, which will also block the keep-alive mechanism of the socket. The result would be a closed socket...
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "runtime"
+
+    "github.com/desertbit/glue"
+)
+
+const (
+    ListenAddress = ":8888"
+)
+
+func main() {
+    // Set the glue event function.
+    glue.OnNewSocket(onNewSocket)
+
+    // Start the http server.
+    err := http.ListenAndServe(ListenAddress, nil)
+    if err != nil {
+        log.Fatalf("ListenAndServe: %v", err)
+    }
+}
+
+func onNewSocket(s *glue.Socket) {
+    // Set a function which is triggered as soon as the socket is closed.
+    s.OnClose(func() {
+        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+    })
+
+    // Discard all reads.
+    // If received data is not discarded, then the read buffer will block as soon
+    // as it is full, which will also block the keep-alive mechanism of the socket.
+    // The result would be a closed socket...
+    s.DiscardRead()
+
+    // Send a welcome string to the client.
+    s.Write("Hello Client")
+}
+
+```
+
 
 ## Similar Go Projects
 

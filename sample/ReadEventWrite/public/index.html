@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf8" />
+	<title>Glue Socket Test</title>
+	<script src="/jquery.min.js"></script>
+    <script src="/dist/glue.js"></script>
+</head>
+<body>
+	<h1>Glue Socket Test</h1>
+
+    <button id="b1">Button</button>
+
+	<script>
+		var socket = glue();
+
+        socket.onMessage(function(data) {
+            console.log("onMessage: " + data);
+        });
+
+        socket.on("connected", function() {
+            console.log("connected");
+            socket.send("Hello Server");
+        });
+
+        socket.on("connecting", function() {
+            console.log("connecting");
+        });
+
+        socket.on("disconnected", function() {
+            console.log("disconnected");
+        });
+
+        socket.on("reconnecting", function() {
+            console.log("reconnecting");
+        });
+
+        socket.on("error", function(e, msg) {
+            console.log("error: " + msg);
+        });
+
+        socket.on("connect_timeout", function() {
+            console.log("connect_timeout");
+        });
+
+        socket.on("timeout", function() {
+            console.log("timeout");
+        });
+
+        socket.on("discard_send_buffer", function(e, buf) {
+            console.log("discard_send_buffer: ");
+            for (var i = 0; i < buf.length; i++) {
+            	console.log("  i: " + buf[i]);
+            }
+        });
+
+
+        //################//
+
+        var count = 0;
+
+        $("#b1").click(function() {
+            var data = (++count) + ": Hello World!";
+            console.log("client send message: " + data);
+            socket.send(data);
+        });
+	</script>
+</body>
+</html>

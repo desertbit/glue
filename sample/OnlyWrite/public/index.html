@@ -12,22 +12,11 @@
     <button id="b1">Button</button>
 
 	<script>
-        $("#b1").click(function() {
-            alert("Hallo Welt");
-        });
-
-
-
-
-
-
-
 		var socket = glue();
 
         socket.onMessage(function(data) {
             console.log("onMessage: " + data);
         });
-
 
         socket.on("connected", function() {
             console.log("connected");
@@ -63,6 +52,17 @@
             for (var i = 0; i < buf.length; i++) {
             	console.log("  i: " + buf[i]);
             }
+        });
+
+
+        //################//
+
+        var count = 0;
+
+        $("#b1").click(function() {
+            var data = (++count) + ": Hello World!";
+            console.log("client send message: " + data);
+            socket.send(data);
         });
 	</script>
 </body>

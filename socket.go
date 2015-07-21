@@ -66,6 +66,7 @@ var (
 
 type OnNewSocketFunc func(s *Socket)
 type OnCloseFunc func()
+type OnReadFunc func(data string)
 
 //###################//
 //### Socket Type ###//
@@ -74,9 +75,11 @@ type OnCloseFunc func()
 type Socket struct {
 	bs backend.BackendSocket
 
-	writeChan chan string
-	readChan  chan string
+	readHandler      *readHandler
+	readHandlerMutex sync.Mutex
 
+	writeChan     chan string
+	readChan      chan string
 	finalReadChan chan string
 	isClosedChan  chan struct{}
 
@@ -182,12 +185,53 @@ func (s *Socket) Read(timeout ...time.Duration) (string, error) {
 	}
 }
 
+// OnRead sets the function which is triggered if new data is received.
+// If this event function based method of reading data from the socket is used,
+// then don't use the socket Read method.
+// Either use the OnRead or Read approach.
+func (s *Socket) OnRead(f OnReadFunc) {
+	// Create a new socket read handler.
+	// Previous handlers are stopped first.
+	handler := s.newReadHandler()
+
+	// Start the handler goroutine.
+	go func() {
+		for {
+			select {
+			case data := <-s.finalReadChan:
+				func() {
+					// Recover panics and log the error.
+					defer func() {
+						if e := recover(); e != nil {
+							log.L.Errorf("glue: panic while calling onRead function: %v\n%s", e, debug.Stack())
+						}
+					}()
+
+					// Trigger the on read event function.
+					f(data)
+				}()
+			case <-s.isClosedChan:
+				// Release this goroutine.
+				return
+			case <-handler.Stopped:
+				// Release this goroutine.
+				return
+			}
+		}
+	}()
+}
+
 // DiscardRead ignores and discars the data received from the client.
-// Call this method only once during initialization, if you don't read any data from
+// Call this method during initialization, if you don't read any data from
 // the socket. If received data is not discarded, then the read buffer will block as soon
 // as it is full, which will also block the keep-alive mechanism of the socket. The result
 // would be a closed socket...
 func (s *Socket) DiscardRead() {
+	// Create a new socket read handler.
+	// Previous handlers are stopped first.
+	handler := s.newReadHandler()
+
+	// Start the handler goroutine.
 	go func() {
 		for {
 			select {
@@ -195,6 +239,9 @@ func (s *Socket) DiscardRead() {
 				// Don't do anything.
 				// Just discard the data.
 			case <-s.isClosedChan:
+				// Release this goroutine.
+				return
+			case <-handler.Stopped:
 				// Release this goroutine.
 				return
 			}
@@ -226,8 +273,11 @@ func (s *Socket) write(rawData string) {
 }
 
 func (s *Socket) onClose() {
-	// Stop all goroutines for this socket by closing the is closed channel.
+	// Stop all goroutines for this socket by closing the isClosed channel.
 	close(s.isClosedChan)
+
+	// Stop the read handler if present.
+	s.stopReadHandler()
 
 	// Clear the write channel to release blocked goroutines.
 	// The pingLoop might be blocked...
@@ -245,7 +295,7 @@ func (s *Socket) onClose() {
 			// Recover panics and log the error.
 			defer func() {
 				if e := recover(); e != nil {
-					log.L.Errorf("glue: panic while calling on error function: %v\n%s", e, debug.Stack())
+					log.L.Errorf("glue: panic while calling onClose function: %v\n%s", e, debug.Stack())
 				}
 			}()
 
