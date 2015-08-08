@@ -1,25 +1,25 @@
-# Glue - Robust Go and Javascript Socket Library
+Glue - Robust Go and Javascript Socket Library
+==============================================
 
 [![Join the chat at https://gitter.im/desertbit/glue](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/desertbit/glue?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **efficient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections.
-The server implementation is **thread-safe**.
+Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **efficient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections. The server implementation is **thread-safe**.
 
-
-## Socket layers
+Socket layers
+-------------
 
 Currently two socket layers are supported:
 
-- **WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined by [RFC 6455](https://tools.ietf.org/html/rfc6455).
-- **AjaxSockets** - This socket layer is used as a fallback mode.
+-	**WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined by [RFC 6455](https://tools.ietf.org/html/rfc6455).
+-	**AjaxSockets** - This socket layer is used as a fallback mode.
 
-
-## Support
+Support
+-------
 
 Feel free to contribute to this project. Please check the [TODO](TODO.md) file for more information.
 
-
-## Documentation 
+Documentation
+-------------
 
 Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
 
@@ -49,7 +49,7 @@ var opts = {
     reconnectAttempts:  10,
 
     // Reset the send buffer after the timeout.
-    resetSendBufferTimeout: 7000 
+    resetSendBufferTimeout: 7000
 };
 
 // Create and connect to the server.
@@ -57,13 +57,12 @@ var opts = {
 var socket = glue(host, opts);
 ```
 
-
-## Install
+Install
+-------
 
 ### Client
 
-The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**.
-It requires jQuery.
+The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**. It requires jQuery.
 
 You can use bower to install the client library:
 
@@ -81,11 +80,10 @@ Import it with:
 import "github.com/desertbit/glue"
 ```
 
-## Example
+Example
+-------
 
-This socket library is very straightforward to use.
-Check the sample directory for more examples.
-
+This socket library is very straightforward to use. Check the sample directory for more examples.
 
 ### Client
 
@@ -140,122 +138,117 @@ Check the sample directory for more examples.
 </script>
 ```
 
-
 ### Server
 
 #### Read Event
 
 Read data from the socket with a read event function.
 
-
 ```go
 package main
 
 import (
-    "log"
-    "net/http"
-    "runtime"
+	"log"
+	"net/http"
+	"runtime"
 
-    "github.com/desertbit/glue"
+	"github.com/desertbit/glue"
 )
 
 const (
-    ListenAddress = ":8888"
+	ListenAddress = ":8888"
 )
 
 func main() {
-    // Set the glue event function.
-    glue.OnNewSocket(onNewSocket)
+	// Set the glue event function.
+	glue.OnNewSocket(onNewSocket)
 
-    // Start the http server.
-    err := http.ListenAndServe(ListenAddress, nil)
-    if err != nil {
-        log.Fatalf("ListenAndServe: %v", err)
-    }
+	// Start the http server.
+	err := http.ListenAndServe(ListenAddress, nil)
+	if err != nil {
+		log.Fatalf("ListenAndServe: %v", err)
+	}
 }
 
 func onNewSocket(s *glue.Socket) {
-    // Set a function which is triggered as soon as the socket is closed.
-    s.OnClose(func() {
-        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-    })
+	// Set a function which is triggered as soon as the socket is closed.
+	s.OnClose(func() {
+		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+	})
 
-    // Set a function which is triggered during each received message.
-    s.OnRead(func(data string) {
-        // Echo the received data back to the client.
-        s.Write(data)
-    })
+	// Set a function which is triggered during each received message.
+	s.OnRead(func(data string) {
+		// Echo the received data back to the client.
+		s.Write(data)
+	})
 
-    // Send a welcome string to the client.
-    s.Write("Hello Client")
+	// Send a welcome string to the client.
+	s.Write("Hello Client")
 }
-
 ```
 
 #### Read Write
 
 Read data from the socket within a loop.
 
-
 ```go
 package main
 
 import (
-    "log"
-    "net/http"
-    "runtime"
+	"log"
+	"net/http"
+	"runtime"
 
-    "github.com/desertbit/glue"
+	"github.com/desertbit/glue"
 )
 
 const (
-    ListenAddress = ":8888"
+	ListenAddress = ":8888"
 )
 
 func main() {
-    // Set the glue event function.
-    glue.OnNewSocket(onNewSocket)
+	// Set the glue event function.
+	glue.OnNewSocket(onNewSocket)
 
-    // Start the http server.
-    err := http.ListenAndServe(ListenAddress, nil)
-    if err != nil {
-        log.Fatalf("ListenAndServe: %v", err)
-    }
+	// Start the http server.
+	err := http.ListenAndServe(ListenAddress, nil)
+	if err != nil {
+		log.Fatalf("ListenAndServe: %v", err)
+	}
 }
 
 func onNewSocket(s *glue.Socket) {
-    // Set a function which is triggered as soon as the socket is closed.
-    s.OnClose(func() {
-        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-    })
+	// Set a function which is triggered as soon as the socket is closed.
+	s.OnClose(func() {
+		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+	})
 
-    // Run the read loop in a new goroutine.
-    go readLoop(s)
+	// Run the read loop in a new goroutine.
+	go readLoop(s)
 
-    // Send a welcome string to the client.
-    s.Write("Hello Client")
+	// Send a welcome string to the client.
+	s.Write("Hello Client")
 }
 
 func readLoop(s *glue.Socket) {
-    for {
-        // Wait for available data.
-        // Optional: pass a timeout duration to read.
-        data, err := s.Read()
-        if err != nil {
-            // Just return and release this goroutine if the socket was closed.
-            if err == glue.ErrSocketClosed {
-                return
-            }
+	for {
+		// Wait for available data.
+		// Optional: pass a timeout duration to read.
+		data, err := s.Read()
+		if err != nil {
+			// Just return and release this goroutine if the socket was closed.
+			if err == glue.ErrSocketClosed {
+				return
+			}
 
-            log.Printf("read error: %v", err)
-            continue
-        }
+			log.Printf("read error: %v", err)
+			continue
+		}
 
-        // Echo the received data back to the client.
-        s.Write(data)
-    }
+		// Echo the received data back to the client.
+		s.Write(data)
+	}
 }
-
 ```
 
 #### Only Write - Discard Read
@@ -268,47 +261,46 @@ Ignore data received from the client.
 package main
 
 import (
-    "log"
-    "net/http"
-    "runtime"
+	"log"
+	"net/http"
+	"runtime"
 
-    "github.com/desertbit/glue"
+	"github.com/desertbit/glue"
 )
 
 const (
-    ListenAddress = ":8888"
+	ListenAddress = ":8888"
 )
 
 func main() {
-    // Set the glue event function.
-    glue.OnNewSocket(onNewSocket)
+	// Set the glue event function.
+	glue.OnNewSocket(onNewSocket)
 
-    // Start the http server.
-    err := http.ListenAndServe(ListenAddress, nil)
-    if err != nil {
-        log.Fatalf("ListenAndServe: %v", err)
-    }
+	// Start the http server.
+	err := http.ListenAndServe(ListenAddress, nil)
+	if err != nil {
+		log.Fatalf("ListenAndServe: %v", err)
+	}
 }
 
 func onNewSocket(s *glue.Socket) {
-    // Set a function which is triggered as soon as the socket is closed.
-    s.OnClose(func() {
-        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-    })
+	// Set a function which is triggered as soon as the socket is closed.
+	s.OnClose(func() {
+		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+	})
 
-    // Discard all reads.
-    // If received data is not discarded, then the read buffer will block as soon
-    // as it is full, which will also block the keep-alive mechanism of the socket.
-    // The result would be a closed socket...
-    s.DiscardRead()
+	// Discard all reads.
+	// If received data is not discarded, then the read buffer will block as soon
+	// as it is full, which will also block the keep-alive mechanism of the socket.
+	// The result would be a closed socket...
+	s.DiscardRead()
 
-    // Send a welcome string to the client.
-    s.Write("Hello Client")
+	// Send a welcome string to the client.
+	s.Write("Hello Client")
 }
-
 ```
 
+Similar Go Projects
+-------------------
 
-## Similar Go Projects
-
-- [go-socket.io](https://github.com/googollee/go-socket.io) - socket.io library for golang, a realtime application framework.
+-	[go-socket.io](https://github.com/googollee/go-socket.io) - socket.io library for golang, a realtime application framework.
