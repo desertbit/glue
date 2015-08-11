@@ -51,15 +51,22 @@
 			console.log("some data could not be send and was discarded.");
         });
 
+		// Channel
+		// #######
+		var c = socket.channel("golang");
 
-        //################//
+		c.onMessage(function(data) {
+            console.log(data);
+        });
+
+		c.send("Hello World");
+
 
         var count = 0;
 
         $("#b1").click(function() {
-            var data = (++count) + ": Hello World!";
-            console.log("client send message: " + data);
-            socket.send(data);
+            var data = (++count) + ": Hello Gophers!";
+            c.send(data);
         });
 	</script>
 </body>

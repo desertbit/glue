@@ -16,20 +16,37 @@
  *  limitations under the License.
  */
 
-// Robust Go and Javascript Socket Library.
+// Package glue - Robust Go and Javascript Socket Library.
 // This library is thread-safe.
 package glue
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/desertbit/glue/backend"
 	"github.com/desertbit/glue/log"
+	"github.com/desertbit/glue/utils"
 )
 
+//#################//
+//### Constants ###//
+//#################//
+
+// Public
+// ######
+const (
+	// Version holds the Glue Socket Protocol Version as string.
+	Version = "1.2.0"
+)
+
+// Private
+// #######
 const (
 	// Send pings to the peer with this period.
 	pingPeriod = 30 * time.Second
@@ -37,51 +54,89 @@ const (
 	// Kill the socket after this timeout.
 	pingResponseTimeout = 7 * time.Second
 
-	// The channel buffer size for received data.
-	readChanBuffer = 2
+	// The main channel name.
+	mainChannelName = "m"
 
-	// Socket commands. Only one character.
-	cmdLen     = 1
-	cmdPing    = "i"
-	cmdPong    = "o"
-	cmdData    = "d"
-	cmdClose   = "c"
-	cmdInvalid = "z"
+	// Socket commands. Must be two character long.
+	// ############################################
+	cmdLen         = 2
+	cmdInit        = "in"
+	cmdPing        = "pi"
+	cmdPong        = "po"
+	cmdClose       = "cl"
+	cmdInvalid     = "iv"
+	cmdChannelData = "cd"
 )
+
+//#################//
+//### Variables ###//
+//#################//
 
 // Public errors:
 var (
-	ErrSocketClosed = errors.New("the socket connection is closed.")
-	ErrReadTimeout  = errors.New("the read timeout was reached.")
+	ErrSocketClosed = errors.New("the socket connection is closed")
+	ErrReadTimeout  = errors.New("the read timeout was reached")
 )
 
 var (
+	// Private
+	// #######
+
 	block       bool
 	onNewSocket = func(*Socket) {} // Initialize with dummy function to remove nil check.
+
+	sockets      = make(map[string]*Socket) // A map holding all active current sockets.
+	socketsMutex sync.Mutex
 )
 
-//###################//
-//### Extra Types ###//
-//###################//
+//####################//
+//### Public Types ###//
+//####################//
 
+// OnNewSocketFunc is an event function.
 type OnNewSocketFunc func(s *Socket)
+
+// OnCloseFunc is an event function.
 type OnCloseFunc func()
+
+// OnReadFunc is an event function.
 type OnReadFunc func(data string)
+
+//#####################//
+//### Private Types ###//
+//#####################//
+
+type initData struct {
+	// Hint: Currently not used.
+	// Placeholder for encryption.
+}
+
+type clientInitData struct {
+	Version string `json:"version"`
+}
 
 //###################//
 //### Socket Type ###//
 //###################//
 
+// A Socket represents a single socket connections to a client.
 type Socket struct {
+	// A Value is a placeholder for custom data.
+	// Use this to attach socket specific data.
+	Value interface{}
+
+	// Private
+	// #######
+
+	id string // Unique socket ID.
 	bs backend.BackendSocket
 
-	readHandler      *readHandler
-	readHandlerMutex sync.Mutex
+	channels    *channels
+	mainChannel *Channel
 
-	writeChan     chan string
-	readChan      chan string
-	finalReadChan chan string
-	isClosedChan  chan struct{}
+	writeChan    chan string
+	readChan     chan string
+	isClosedChan chan struct{}
 
 	onCloseFunc OnCloseFunc
 
@@ -95,15 +150,20 @@ type Socket struct {
 func newSocket(bs backend.BackendSocket) *Socket {
 	// Create a new socket value.
 	s := &Socket{
-		bs:            bs,
-		writeChan:     bs.WriteChan(),
-		readChan:      bs.ReadChan(),
-		finalReadChan: make(chan string, readChanBuffer),
-		isClosedChan:  make(chan struct{}),
+		id:       utils.UUID(),
+		bs:       bs,
+		channels: newChannels(),
+
+		writeChan:    bs.WriteChan(),
+		readChan:     bs.ReadChan(),
+		isClosedChan: make(chan struct{}),
 
 		pingTimer:   time.NewTimer(pingPeriod),
 		pingTimeout: time.NewTimer(pingResponseTimeout),
 	}
+
+	// Create the main channel.
+	s.mainChannel = s.Channel(mainChannelName)
 
 	// Set the event functions.
 	bs.OnClose(s.onClose)
@@ -117,6 +177,11 @@ func newSocket(bs backend.BackendSocket) *Socket {
 	go s.pingLoop()
 
 	return s
+}
+
+// ID returns the socket's unique ID.
+func (s *Socket) ID() string {
+	return s.id
 }
 
 // RemoteAddr returns the remote address of the client.
@@ -146,8 +211,8 @@ func (s *Socket) OnClose(f OnCloseFunc) {
 
 // Write data to the client.
 func (s *Socket) Write(data string) {
-	// Prepend the data command and write to the client.
-	s.write(cmdData + data)
+	// Write to the main channel.
+	s.mainChannel.Write(data)
 }
 
 // Read the next message from the socket. This method is blocking.
@@ -156,69 +221,15 @@ func (s *Socket) Write(data string) {
 // ErrSocketClosed is returned, if the socket connection is closed.
 // ErrReadTimeout is returned, if the timeout is reached.
 func (s *Socket) Read(timeout ...time.Duration) (string, error) {
-	timeoutChan := make(chan (struct{}))
-
-	// Create a timeout timer if a timeout is specified.
-	if len(timeout) > 0 && timeout[0] > 0 {
-		timer := time.AfterFunc(timeout[0], func() {
-			// Trigger the timeout by closing the channel.
-			close(timeoutChan)
-		})
-
-		// Always stop the timer on defer.
-		defer func() {
-			timer.Stop()
-		}()
-	}
-
-	select {
-	case data := <-s.finalReadChan:
-		return data, nil
-	case <-s.isClosedChan:
-		// The connection was closed.
-		// Return an error.
-		return "", ErrSocketClosed
-	case <-timeoutChan:
-		// The timeout was reached.
-		// Return an error.
-		return "", ErrReadTimeout
-	}
+	return s.mainChannel.Read(timeout...)
 }
 
 // OnRead sets the function which is triggered if new data is received.
 // If this event function based method of reading data from the socket is used,
 // then don't use the socket Read method.
-// Either use the OnRead or Read approach.
+// Either use the OnRead or the Read approach.
 func (s *Socket) OnRead(f OnReadFunc) {
-	// Create a new socket read handler.
-	// Previous handlers are stopped first.
-	handler := s.newReadHandler()
-
-	// Start the handler goroutine.
-	go func() {
-		for {
-			select {
-			case data := <-s.finalReadChan:
-				func() {
-					// Recover panics and log the error.
-					defer func() {
-						if e := recover(); e != nil {
-							log.L.Errorf("glue: panic while calling onRead function: %v\n%s", e, debug.Stack())
-						}
-					}()
-
-					// Trigger the on read event function.
-					f(data)
-				}()
-			case <-s.isClosedChan:
-				// Release this goroutine.
-				return
-			case <-handler.Stopped:
-				// Release this goroutine.
-				return
-			}
-		}
-	}()
+	s.mainChannel.OnRead(f)
 }
 
 // DiscardRead ignores and discars the data received from the client.
@@ -227,26 +238,7 @@ func (s *Socket) OnRead(f OnReadFunc) {
 // as it is full, which will also block the keep-alive mechanism of the socket. The result
 // would be a closed socket...
 func (s *Socket) DiscardRead() {
-	// Create a new socket read handler.
-	// Previous handlers are stopped first.
-	handler := s.newReadHandler()
-
-	// Start the handler goroutine.
-	go func() {
-		for {
-			select {
-			case <-s.finalReadChan:
-				// Don't do anything.
-				// Just discard the data.
-			case <-s.isClosedChan:
-				// Release this goroutine.
-				return
-			case <-handler.Stopped:
-				// Release this goroutine.
-				return
-			}
-		}
-	}()
+	s.mainChannel.DiscardRead()
 }
 
 //##############################//
@@ -276,9 +268,6 @@ func (s *Socket) onClose() {
 	// Stop all goroutines for this socket by closing the isClosed channel.
 	close(s.isClosedChan)
 
-	// Stop the read handler if present.
-	s.stopReadHandler()
-
 	// Clear the write channel to release blocked goroutines.
 	// The pingLoop might be blocked...
 	for i := 0; i < len(s.writeChan); i++ {
@@ -288,6 +277,15 @@ func (s *Socket) onClose() {
 			break
 		}
 	}
+
+	// Remove the socket again from the active sockets map.
+	func() {
+		// Lock the mutex.
+		socketsMutex.Lock()
+		defer socketsMutex.Unlock()
+
+		delete(sockets, s.id)
+	}()
 
 	// Trigger the on close event if defined.
 	if s.onCloseFunc != nil {
@@ -400,28 +398,59 @@ func (s *Socket) readLoop() {
 			cmd := data[:cmdLen]
 			data = data[cmdLen:]
 
-			// Perform the command request.
-			switch cmd {
-			case cmdPing:
-				// Send a pong reply.
-				s.write(cmdPong)
-			case cmdPong:
-				// Don't do anything, The ping timer was already reset.
-			case cmdClose:
-				// Close the socket.
-				s.bs.Close()
-			case cmdData:
-				// Send the data to the final read channel.
-				s.finalReadChan <- data
-			default:
-				// Send an invalid command response.
-				s.write(cmdInvalid)
+			// Handle the received data and log error messages.
+			if err := s.handleRead(cmd, data); err != nil {
+				log.L.WithFields(logrus.Fields{
+					"remoteAddress": s.RemoteAddr(),
+					"userAgent":     s.UserAgent(),
+					"cmd":           cmd,
+				}).Warningf("glue: handle received data: %v", err)
 			}
 		case <-s.isClosedChan:
 			// Just exit the loop
 			return
 		}
 	}
+}
+
+func (s *Socket) handleRead(cmd, data string) error {
+	// Perform the command request.
+	switch cmd {
+	case cmdPing:
+		// Send a pong reply.
+		s.write(cmdPong)
+
+	case cmdPong:
+		// Don't do anything, The ping timer was already reset.
+
+	case cmdClose:
+		// Close the socket.
+		s.bs.Close()
+
+	case cmdInit:
+		// Handle the initialization.
+		initSocket(s, data)
+
+	case cmdChannelData:
+		// Unmarshal the channel name and data string.
+		name, data, err := utils.UnmarshalValues(data)
+		if err != nil {
+			return err
+		}
+
+		// Push the data to the corresponding channel.
+		if err = s.channels.triggerReadForChannel(name, data); err != nil {
+			return err
+		}
+	default:
+		// Send an invalid command response.
+		s.write(cmdInvalid)
+
+		// Return an error.
+		return fmt.Errorf("received invalid socket command")
+	}
+
+	return nil
 }
 
 //##############//
@@ -435,8 +464,48 @@ func Block(b bool) {
 
 // OnNewSocket sets the event function which is
 // triggered if a new socket connection was made.
+// The event function must not block! As soon as the event function
+// returns, the socket is added to the active sockets map.
 func OnNewSocket(f OnNewSocketFunc) {
 	onNewSocket = f
+}
+
+// Sockets returns a list of all current connected sockets.
+// Hint: Sockets are added to the active sockets list after the OnNewSocket
+// event function is called.
+func Sockets() []*Socket {
+	// Lock the mutex.
+	socketsMutex.Lock()
+	defer socketsMutex.Unlock()
+
+	// Create the slice.
+	list := make([]*Socket, len(sockets))
+
+	// Add all sockets from the map.
+	i := 0
+	for _, s := range sockets {
+		list[i] = s
+		i++
+	}
+
+	return list
+}
+
+// Release this package. This will block all new incomming socket connections
+// and close all current connected sockets.
+func Release() {
+	// Block all new incomming socket connections.
+	Block(true)
+
+	// Wait for a little moment, so new incomming sockets are added
+	// to the sockets active list.
+	time.Sleep(200 * time.Millisecond)
+
+	// Close all current connected sockets.
+	sockets := Sockets()
+	for _, s := range sockets {
+		s.Close()
+	}
 }
 
 //###############//
@@ -456,17 +525,88 @@ func onNewSocketConnection(bs backend.BackendSocket) {
 	}
 
 	// Create a new socket value.
-	s := newSocket(bs)
+	// The goroutines are started automatically.
+	newSocket(bs)
+}
 
+func initSocket(s *Socket, dataJSON string) {
+	// Handle the socket initialization in an anonymous function
+	// to handle the error in a clean and simple way.
+	err := func() error {
+		// Handle received initialization data:
+		// ####################################
+
+		// Unmarshal the data JSON.
+		var cData clientInitData
+		err := json.Unmarshal([]byte(dataJSON), &cData)
+		if err != nil {
+			return fmt.Errorf("json unmarshal init data: %v", err)
+		}
+
+		// The client and server protocol versions have to match.
+		if cData.Version != Version {
+			return fmt.Errorf("client and server socket protocol version does not match: %s", cData.Version)
+		}
+
+		// Send initialization data:
+		// #########################
+
+		// Create the new initialization data value.
+		data := initData{}
+
+		// Marshal the data to a JSON string.
+		dataJSON, err := json.Marshal(&data)
+		if err != nil {
+			return fmt.Errorf("json marshal init data: %v", err)
+		}
+
+		// Send the init data to the client.
+		s.write(cmdInit + string(dataJSON))
+
+		return nil
+	}()
+
+	// Handle the error.
+	if err != nil {
+		// Close the socket.
+		s.Close()
+
+		// Log the error.
+		log.L.WithFields(logrus.Fields{
+			"remoteAddress": s.RemoteAddr(),
+			"userAgent":     s.UserAgent(),
+		}).Warningf("glue: init socket: %v", err)
+
+		return
+	}
+
+	// Trigger the on new socket event function.
 	func() {
 		// Recover panics and log the error.
 		defer func() {
 			if e := recover(); e != nil {
+				// Close the socket and log the error message.
+				s.Close()
 				log.L.Errorf("glue: panic while calling on new socket function: %v\n%s", e, debug.Stack())
 			}
 		}()
 
-		// Trigger the on new socket event function.
+		// Trigger the event function.
 		onNewSocket(s)
+	}()
+
+	// Just return if the socket was closed by the triggered event function.
+	if s.IsClosed() {
+		return
+	}
+
+	// Add the new socket to the active sockets map.
+	func() {
+		// Lock the mutex.
+		socketsMutex.Lock()
+		defer socketsMutex.Unlock()
+
+		// Add the socket to the map.
+		sockets[s.id] = s
 	}()
 }

@@ -33,7 +33,7 @@ import (
 
 const (
 	// HTTP upgrader url.
-	httpWebSocketUrl = httpBaseSocketUrl + "ws"
+	httpWebSocketURL = httpBaseSocketURL + "ws"
 
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
@@ -55,7 +55,7 @@ var (
 
 func init() {
 	// Create the websocket handler
-	http.HandleFunc(httpWebSocketUrl, handleWebSocket)
+	http.HandleFunc(httpWebSocketURL, handleWebSocket)
 }
 
 //######################//
@@ -226,7 +226,7 @@ func handleWebSocket(rw http.ResponseWriter, req *http.Request) {
 			"remoteAddress": remoteAddr,
 			"userAgent":     userAgent,
 			"method":        req.Method,
-		}).Warning("client accessed websocket handler with an invalid request method.")
+		}).Warning("client accessed websocket handler with an invalid request method")
 
 		http.Error(rw, "Method not allowed", 405)
 		return

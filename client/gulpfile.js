@@ -26,9 +26,12 @@ gulp.task('watch', ['default'], function () {
   gulp.watch(['./src/*.js', './src/**/*.js'], ['js']);
 });
 
-
-gulp.task('debug', function() {
+gulp.task('setdebug', function() {
 	debug = true;
+});
+
+gulp.task('debug', ['setdebug', 'default'], function() {
+
 });
 
 gulp.task('default', ['js'], function() {

@@ -47,11 +47,8 @@
             console.log("timeout");
         });
 
-        socket.on("discard_send_buffer", function(e, buf) {
-            console.log("discard_send_buffer: ");
-            for (var i = 0; i < buf.length; i++) {
-            	console.log("  i: " + buf[i]);
-            }
+        socket.on("discard_send_buffer", function() {
+            console.log("some data could not be send and was discarded.");
         });
 
 

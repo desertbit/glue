@@ -54,17 +54,24 @@ func main() {
 }
 
 func onNewSocket(s *glue.Socket) {
+	// We won't read any data from the socket itself.
+	// Discard received data!
+	s.DiscardRead()
+
 	// Set a function which is triggered as soon as the socket is closed.
 	s.OnClose(func() {
 		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
 	})
 
-	// Set a function which is triggered during each received message.
-	s.OnRead(func(data string) {
+	// Create a channel.
+	c := s.Channel("golang")
+
+	// Set the channel on read event function.
+	c.OnRead(func(data string) {
 		// Echo the received data back to the client.
-		s.Write(data)
+		c.Write("channel golang: " + data)
 	})
 
-	// Send a welcome string to the client.
-	s.Write("Hello Client")
+	// Write to the channel.
+	c.Write("Hello Gophers!")
 }

@@ -16,11 +16,11 @@
  *  limitations under the License.
  */
 
-// Backend socket implementations.
+// Package backend provides various socket implementations.
 package backend
 
 const (
-	httpBaseSocketUrl = "/glue/"
+	httpBaseSocketURL = "/glue/"
 
 	// Channel buffer sizes:
 	readChanSize  = 5

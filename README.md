@@ -18,12 +18,43 @@ Support
 
 Feel free to contribute to this project. Please check the [TODO](TODO.md) file for more information.
 
+Install
+-------
+
+### Client
+
+The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**. It requires jQuery.
+
+You can use bower to install the client library:
+
+`bower install --save glue-socket`
+
+### Server
+
+Get the source and start hacking.
+
+`go get github.com/desertbit/glue`
+
+Import it with:
+
+```go
+import "github.com/desertbit/glue"
+```
+
 Documentation
 -------------
 
-Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
+### Client - Javascript Library
 
-Optional Javascript options which can be passed to Glue.
+A simple call to glue() without any options will establish a socket connection to the same host. A glue socket object is returned.
+
+```js
+// Create and connect to the server.
+// Optional pass a host string and options.
+var socket = glue();
+```
+
+Optional Javascript options which can be passed to Glue:
 
 ```js
 var host = "https://foo.bar";
@@ -49,7 +80,7 @@ var opts = {
     reconnectAttempts:  10,
 
     // Reset the send buffer after the timeout.
-    resetSendBufferTimeout: 7000
+    resetSendBufferTimeout: 10000
 };
 
 // Create and connect to the server.
@@ -57,33 +88,167 @@ var opts = {
 var socket = glue(host, opts);
 ```
 
-Install
--------
+The glue socket object has following public methods:
 
-### Client
+```js
+// version returns the glue socket protocol version.
+socket.version();
 
-The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**. It requires jQuery.
+// type returns the current used socket type as string.
+// Either "WebSocket" or "AjaxSocket".
+socket.type();
 
-You can use bower to install the client library:
+// state returns the current socket state as string.
+// Following states are available:
+//  - "disconnected"
+//  - "connecting"
+//  - "reconnecting"
+//  - "connected"
+socket.state();
 
-`bower install --save glue-socket`
+// send a data string to the server.
+// One optional discard callback can be passed.
+// It is called if the data could not be send to the server.
+// The data is passed as first argument to the discard callback.
+// returns:
+//  1 if immediately send,
+//  0 if added to the send queue and
+//  -1 if discarded.
+socket.send(data, discardCallback);
 
-### Server
+// onMessage sets the function which is triggered as soon as a message is received.
+socket.onMessage(f);
 
-Get the source and start hacking.
+// on binds event functions to events.
+// This function is equivalent to jQuery's on method.
+// Following events are available:
+//  - "connected"
+//  - "connecting"
+//  - "disconnected"
+//  - "reconnecting"
+//  - "error"
+//  - "connect_timeout"
+//  - "timeout"
+//  - "discard_send_buffer"
+socket.on();
 
-`go get github.com/desertbit/glue`
+// Reconnect to the server.
+// This is ignored if the socket is not disconnected.
+// It will reconnect automatically if required.
+socket.reconnect();
 
-Import it with:
+// close the socket connection.
+socket.close();
+
+// channel returns the given channel object specified by name
+// to communicate in a separate channel than the default one.
+socket.channel(name);
+```
+
+A channel object has following public methods:
+
+```js
+// onMessage sets the function which is triggered as soon as a message is received.
+c.onMessage(f);
+
+// send a data string to the channel.
+// One optional discard callback can be passed.
+// It is called if the data could not be send to the server.
+// The data is passed as first argument to the discard callback.
+// returns:
+//  1 if immediately send,
+//  0 if added to the send queue and
+//  -1 if discarded.
+c.send(data, discardCallback);
+```
+
+### Server - Go Library
+
+Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
+
+#### Reading data
+
+Data has to be read from the socket and each channel. If you don't require to read data from the socket or a channel, then discard received data with the DiscardRead() method. If received data is not discarded, then the read buffer will block as soon as it is full, which will also block the keep-alive mechanism of the socket. The result would be a closed socket...
 
 ```go
-import "github.com/desertbit/glue"
+// ...
+
+// Discard received data from the main socket channel.
+// Hint: Channels have to be discarded separately.
+s.DiscardRead()
+
+// ...
+
+// Create a channel.
+c := s.Channel("golang")
+
+// Discard received data from a channel.
+c.DiscardRead()
+```
+
+#### Bind custom values to a socket
+
+The socket.Value interface is a placeholder for custom data.
+
+```go
+type CustomValues struct {
+	Foo string
+	Bar int
+}
+
+// ...
+
+s.Value = &CustomValues{
+	Foo: "Hello World",
+	Bar: 900,
+}
+
+// ...
+
+v, ok := s.Value.(*CustomValues)
+if !ok {
+	// Handle error
+	return
+}
+```
+
+### Channels
+
+Multiple separate communication channels can be created:
+
+Server:
+
+```go
+// ...
+
+// Create a channel.
+c := s.Channel("golang")
+
+// Set the channel on read event function.
+c.OnRead(func(data string) {
+	// ...
+})
+
+// Write to the channel.
+c.Write("Hello Gophers!")
+```
+
+Client:
+
+```js
+var c = socket.channel("golang");
+
+c.onMessage(function(data) {
+	console.log(data);
+});
+
+c.send("Hello World");
 ```
 
 Example
 -------
 
-This socket library is very straightforward to use. Check the sample directory for more examples.
+This socket library is very straightforward to use. Check the [sample directory](sample) for more examples.
 
 ### Client
 
@@ -129,20 +294,15 @@ This socket library is very straightforward to use. Check the sample directory f
         console.log("timeout");
     });
 
-    socket.on("discard_send_buffer", function(e, buf) {
-        console.log("discard_send_buffer: ");
-        for (var i = 0; i < buf.length; i++) {
-        	console.log("  i: " + buf[i]);
-        }
+    socket.on("discard_send_buffer", function() {
+        console.log("some data could not be send and was discarded.");
     });
 </script>
 ```
 
 ### Server
 
-#### Read Event
-
-Read data from the socket with a read event function.
+Read data from the socket with a read event function. Check the sample directory for other ways of reading data from the socket.
 
 ```go
 package main
@@ -160,6 +320,11 @@ const (
 )
 
 func main() {
+	// Release the glue library on defer.
+	// This will block new incoming connections
+	// and close all current active sockets.
+	defer glue.Release()
+
 	// Set the glue event function.
 	glue.OnNewSocket(onNewSocket)
 
@@ -181,119 +346,6 @@ func onNewSocket(s *glue.Socket) {
 		// Echo the received data back to the client.
 		s.Write(data)
 	})
-
-	// Send a welcome string to the client.
-	s.Write("Hello Client")
-}
-```
-
-#### Read Write
-
-Read data from the socket within a loop.
-
-```go
-package main
-
-import (
-	"log"
-	"net/http"
-	"runtime"
-
-	"github.com/desertbit/glue"
-)
-
-const (
-	ListenAddress = ":8888"
-)
-
-func main() {
-	// Set the glue event function.
-	glue.OnNewSocket(onNewSocket)
-
-	// Start the http server.
-	err := http.ListenAndServe(ListenAddress, nil)
-	if err != nil {
-		log.Fatalf("ListenAndServe: %v", err)
-	}
-}
-
-func onNewSocket(s *glue.Socket) {
-	// Set a function which is triggered as soon as the socket is closed.
-	s.OnClose(func() {
-		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-	})
-
-	// Run the read loop in a new goroutine.
-	go readLoop(s)
-
-	// Send a welcome string to the client.
-	s.Write("Hello Client")
-}
-
-func readLoop(s *glue.Socket) {
-	for {
-		// Wait for available data.
-		// Optional: pass a timeout duration to read.
-		data, err := s.Read()
-		if err != nil {
-			// Just return and release this goroutine if the socket was closed.
-			if err == glue.ErrSocketClosed {
-				return
-			}
-
-			log.Printf("read error: %v", err)
-			continue
-		}
-
-		// Echo the received data back to the client.
-		s.Write(data)
-	}
-}
-```
-
-#### Only Write - Discard Read
-
-Ignore data received from the client.
-
-**Note:** If received data is not discarded, then the read buffer will block as soon as it is full, which will also block the keep-alive mechanism of the socket. The result would be a closed socket...
-
-```go
-package main
-
-import (
-	"log"
-	"net/http"
-	"runtime"
-
-	"github.com/desertbit/glue"
-)
-
-const (
-	ListenAddress = ":8888"
-)
-
-func main() {
-	// Set the glue event function.
-	glue.OnNewSocket(onNewSocket)
-
-	// Start the http server.
-	err := http.ListenAndServe(ListenAddress, nil)
-	if err != nil {
-		log.Fatalf("ListenAndServe: %v", err)
-	}
-}
-
-func onNewSocket(s *glue.Socket) {
-	// Set a function which is triggered as soon as the socket is closed.
-	s.OnClose(func() {
-		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-	})
-
-	// Discard all reads.
-	// If received data is not discarded, then the read buffer will block as soon
-	// as it is full, which will also block the keep-alive mechanism of the socket.
-	// The result would be a closed socket...
-	s.DiscardRead()
 
 	// Send a welcome string to the client.
 	s.Write("Hello Client")

@@ -16,7 +16,7 @@
  *  limitations under the License.
  */
 
-// Log backend used by the socket library.
+// Package log holds the log backend used by the socket library.
 // Use the logrus L value to adapt the log formatting
 // or log levels if required...
 package log
@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	// L is the public logrus value used internally by glue.
 	L = logrus.New()
 )
 

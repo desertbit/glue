@@ -35,7 +35,7 @@ import (
 
 const (
 	// HTTP upgrader url.
-	httpAjaxSocketUrl = httpBaseSocketUrl + "ajax"
+	httpAjaxSocketURL = httpBaseSocketURL + "ajax"
 
 	ajaxPollTimeout     = 35 * time.Second
 	ajaxUIDLength       = 10
@@ -50,13 +50,13 @@ const (
 )
 
 var (
-	ajaxSockets map[string]*ajaxSocket = make(map[string]*ajaxSocket)
+	ajaxSockets = make(map[string]*ajaxSocket)
 	ajaxMutex   sync.Mutex
 )
 
 func init() {
 	// Create the ajax socket handler.
-	http.HandleFunc(httpAjaxSocketUrl, handleAjaxSocket)
+	http.HandleFunc(httpAjaxSocketURL, handleAjaxSocket)
 }
 
 //#######################//

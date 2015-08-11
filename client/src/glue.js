@@ -30,18 +30,23 @@ var glue = function(host, options) {
      * Constants
      */
 
+    var Version         = "1.2.0",
+        Delimiter       = "&",
+        MainChannelName = "m";
+
     var SocketTypes = {
         WebSocket:  "WebSocket",
         AjaxSocket: "AjaxSocket"
     }
 
     var Commands = {
-        Len: 	  1,
-        Ping:    'i',
-        Pong:    'o',
-        Data:    'd',
-        Close: 	 'c',
-        Invalid: 'z'
+        Len: 	          2,
+        Init:           'in',
+        Ping:           'pi',
+        Pong:           'po',
+        Close: 	        'cl',
+        Invalid:        'iv',
+        ChannelData:    'cd'
     };
 
     var States = {
@@ -72,7 +77,7 @@ var glue = function(host, options) {
         reconnectAttempts:  10,
 
         // Reset the send buffer after the timeout.
-        resetSendBufferTimeout: 7000 
+        resetSendBufferTimeout: 10000
     };
 
 
@@ -82,7 +87,8 @@ var glue = function(host, options) {
      */
 
     var bs                      = false,
-        initialConnectedOnce    = false,    // If atleast one successful connection was made.
+        mainChannel,
+        initialConnectedOnce    = false,    // If at least one successful connection was made.
         bsNewFunc,                          // Function to create a new backend socket.
         currentSocketType,
         currentState            = States.Disconnected,
@@ -93,7 +99,20 @@ var glue = function(host, options) {
         sendBuffer              = [],
         resetSendBufferTimeout  = false,
         resetSendBufferTimedOut = false,
-        onMessageFunc           = function() {}; // Set to a dummy function.
+        isReady                 = false,    // If true, the socket is initialized and ready.
+        beforeReadySendBuffer   = [];       // Buffer to hold requests for the server while the socket is not ready yet.
+
+
+
+    /*
+     * Include the dependencies
+     */
+
+    // Exported helper methods for the dependencies.
+    var closeSocket, send, sendBuffered;
+
+    @@include('./utils.js')
+    @@include('./channel.js')
 
 
 
@@ -101,7 +120,41 @@ var glue = function(host, options) {
      * Methods
      */
 
+    // Function variables.
     var reconnect, triggerEvent;
+
+    // Sends the data to the server if a socket connection exists, otherwise it is discarded.
+    // If the socket is not ready yet, the data is buffered until the socket is ready.
+    send = function(data) {
+        if (!bs) {
+            return;
+        }
+
+        // If the socket is not ready yet, buffer the data.
+        if (!isReady) {
+            beforeReadySendBuffer.push(data);
+            return;
+        }
+
+        // Send the data.
+        bs.send(data);
+    };
+
+    // Hint: the isReady flag has to be true before calling this function!
+    var sendBeforeReadyBufferedData = function() {
+        // Skip if empty.
+        if (beforeReadySendBuffer.length == 0) {
+            return;
+        }
+
+        // Send the buffered data.
+        for (var i = 0; i < beforeReadySendBuffer.length; i++) {
+            send(beforeReadySendBuffer[i]);
+        }
+
+        // Clear the buffer.
+        beforeReadySendBuffer = [];
+    };
 
     var stopResetSendBufferTimeout = function() {
         // Reset the flag.
@@ -126,14 +179,31 @@ var glue = function(host, options) {
             resetSendBufferTimeout = false;
             resetSendBufferTimedOut = true;
 
-            // Trigger the event if any buffered send data is discarded.
-            if (sendBuffer.length > 0) {
-                triggerEvent("discard_send_buffer", [sendBuffer]);
+            // Return if already empty.
+            if (sendBuffer.length == 0) {
+                return;
             }
+
+            // Call the discard callbacks if defined.
+            var buf;
+            for (var i = 0; i < sendBuffer.length; i++) {
+                buf = sendBuffer[i];
+                if (buf.discardCallback && $.isFunction(buf.discardCallback)) {
+                    try {
+                        buf.discardCallback(buf.data);
+                    }
+                    catch (err) {
+                       console.log("glue: failed to call discard callback: " + err.message);
+                    }
+                }
+            }
+
+            // Trigger the event if any buffered send data is discarded.
+            triggerEvent("discard_send_buffer");
 
             // Reset the buffer.
             sendBuffer = [];
-        }, options.resetSendBufferTimeout); 
+        }, options.resetSendBufferTimeout);
     };
 
     var sendDataFromSendBuffer = function() {
@@ -146,12 +216,62 @@ var glue = function(host, options) {
         }
 
         // Send data, which could not be send...
+        var buf;
         for (var i = 0; i < sendBuffer.length; i++) {
-            bs.send(Commands.Data + sendBuffer[i]);
+            buf = sendBuffer[i];
+            send(buf.cmd + buf.data);
         }
 
         // Clear the buffer again.
         sendBuffer = [];
+    };
+
+    // Send data to the server.
+    // This is a helper method which handles buffering,
+    // if the socket is currently not connected.
+    // One optional discard callback can be passed.
+    // It is called if the data could not be send to the server.
+    // The data is passed as first argument to the discard callback.
+    // returns:
+    //  1 if immediately send,
+    //  0 if added to the send queue and
+    //  -1 if discarded.
+    sendBuffered = function(cmd, data, discardCallback) {
+        // Be sure, that the data value is an empty
+        // string if not passed to this method.
+        if (!data) {
+            data = "";
+        }
+
+        // Add the data to the send buffer if disconnected.
+        // They will be buffered for a short timeout to bridge short connection errors.
+        if (!bs || currentState !== States.Connected) {
+            // If already timed out, then call the discard callback and return.
+            if (resetSendBufferTimedOut) {
+                if (discardCallback && $.isFunction(discardCallback)) {
+                    discardCallback(data);
+                }
+
+                return -1;
+            }
+
+            // Reset the send buffer after a specific timeout.
+            startResetSendBufferTimeout();
+
+            // Append to the buffer.
+            sendBuffer.push({
+                cmd:                cmd,
+                data:               data,
+                discardCallback:    discardCallback
+            });
+
+            return 0;
+        }
+
+        // Send the data with the command to the server.
+        send(cmd + data);
+
+        return 1;
     };
 
     var stopConnectTimeout = function() {
@@ -176,7 +296,7 @@ var glue = function(host, options) {
 
             // Reconnect to the server.
             reconnect();
-        }, options.connectTimeout); 
+        }, options.connectTimeout);
     };
 
     var stopPingTimeout = function() {
@@ -203,7 +323,7 @@ var glue = function(host, options) {
             pingTimeout = false;
 
             // Request a Pong response to check if the connection is still alive.
-            bs.send(Commands.Ping);
+            send(Commands.Ping);
 
             // Start the reconnect timeout.
             pingReconnectTimeout = setTimeout(function() {
@@ -215,8 +335,8 @@ var glue = function(host, options) {
 
                 // Reconnect to the server.
                 reconnect();
-            }, options.pingReconnectTimeout); 
-        }, options.pingInterval); 
+            }, options.pingReconnectTimeout);
+        }, options.pingInterval);
     };
 
     var newBackendSocket = function() {
@@ -254,92 +374,132 @@ var glue = function(host, options) {
         bs = bsNewFunc();
     };
 
+    var initSocket = function(data) {
+        // Parse the data JSON string to an object.
+        data = JSON.parse(data);
+
+        // Hint: Placeholder for encryption.
+        // Otherwise close the socket and log the error.
+        /*if (d...) {
+            closeSocket();
+            console.log("glue: ...");
+            return;
+        }*/
+
+        // The socket initialization is done.
+        // ##################################
+
+        // Set the ready flag.
+        isReady = true;
+
+        // First send all data messages which were
+        // buffered because the socket was not ready.
+        sendBeforeReadyBufferedData();
+
+        // Now set the state and trigger the event.
+        currentState = States.Connected;
+        triggerEvent("connected");
+
+        // Send the queued data from the send buffer if present.
+        // Do this after the next tick to be sure, that
+        // the connected event gets fired first.
+        setTimeout(sendDataFromSendBuffer, 0);
+    };
+
     var connectSocket = function() {
-        // Connect during the next tick.
-        // The user should be able to connect event functions first.
-        setTimeout(function() {
-            // Set a new backend socket.
-            newBackendSocket();
+        // Set a new backend socket.
+        newBackendSocket();
 
-            // Set the backend socket events.
-            bs.onOpen = function() {
-                // Stop the connect timeout.
-                stopConnectTimeout();
+        // Set the backend socket events.
+        bs.onOpen = function() {
+            // Stop the connect timeout.
+            stopConnectTimeout();
 
-                // Reset the reconnect count.
-                reconnectCount = 0;
+            // Reset the reconnect count.
+            reconnectCount = 0;
 
-                // Set the flag.
-                initialConnectedOnce = true;
+            // Set the flag.
+            initialConnectedOnce = true;
 
-                // Reset or start the ping timeout.
-                resetPingTimeout();
+            // Reset or start the ping timeout.
+            resetPingTimeout();
 
-                // Set the state and trigger the event.
-                currentState = States.Connected;
-                triggerEvent("connected");
-
-                // Send the queued data from the send buffer if present.
-                // Do this after the next tick to be sure, that
-                // the connected event gets fired first.
-                setTimeout(sendDataFromSendBuffer, 0);
+            // Prepare the init data to be send to the server.
+            var data = {
+                version: Version
             };
 
-            bs.onClose = function() {
-                // Reconnect the socket.
-                reconnect();
-            };
+            // Marshal the data object to a JSON string.
+            data = JSON.stringify(data);
 
-            bs.onError = function(msg) {
-                // Trigger the error event.
-                triggerEvent("error", [msg]);
+            // Send the init data to the server with the init command.
+            // Hint: the backend socket is used directly instead of the send function,
+            // because the socket is not ready yet and this part belongs to the
+            // initialization process.
+            bs.send(Commands.Init + data);
+        };
 
-                // Reconnect the socket.
-                reconnect();
-            };
+        bs.onClose = function() {
+            // Reconnect the socket.
+            reconnect();
+        };
 
-            bs.onMessage = function(data) {
-                // Reset the ping timeout.
-                resetPingTimeout();
+        bs.onError = function(msg) {
+            // Trigger the error event.
+            triggerEvent("error", [msg]);
 
-                // Log if the received data is too short.
-                if (data.length < Commands.Len) {
-                    console.log("glue: received invalid data from server: data is too short.");
+            // Reconnect the socket.
+            reconnect();
+        };
+
+        bs.onMessage = function(data) {
+            // Reset the ping timeout.
+            resetPingTimeout();
+
+            // Log if the received data is too short.
+            if (data.length < Commands.Len) {
+                console.log("glue: received invalid data from server: data is too short.");
+                return;
+            }
+
+            // Extract the command from the received data string.
+            var cmd = data.substr(0, Commands.Len);
+            data = data.substr(Commands.Len);
+
+            if (cmd === Commands.Ping) {
+                // Response with a pong message.
+                send(Commands.Pong);
+            }
+            else if (cmd === Commands.Pong) {
+                // Don't do anything.
+                // The ping timeout was already reset.
+            }
+            else if (cmd === Commands.Invalid) {
+                // Log.
+                console.log("glue: server replied with an invalid request notification!");
+            }
+            else if (cmd === Commands.Init) {
+                initSocket(data);
+            }
+            else if (cmd === Commands.ChannelData) {
+                // Obtain the two values from the data string.
+                var v = utils.unmarshalValues(data);
+                if (!v) {
+                    console.log("glue: server requested an invalid channel data request: " + data);
                     return;
                 }
 
-                // Extract the command from the received data string.
-                var cmd = data.substr(0,Commands.Len);
-                data = data.substr(Commands.Len);
+                // Trigger the event.
+                channel.emitOnMessage(v.first, v.second);
+            }
+            else {
+                console.log("glue: received invalid data from server with command '" + cmd + "' and data '" + data + "'!");
+            }
+        };
 
-                if (cmd === Commands.Ping) {
-                    // Response with a pong message.
-                    bs.send(Commands.Pong);
-                }
-                else if (cmd === Commands.Pong) {
-                    // Don't do anything.
-                    // The ping timeout was already reset.
-                }
-                else if (cmd === Commands.Invalid) {
-                    // Log.
-                    console.log("glue: server replied with an invalid request notification!");
-                }
-                else if (cmd === Commands.Data) {
-                    // Call the on message event.
-                    if (data) {
-                        try {
-                            onMessageFunc(data);
-                        }
-                        catch(err) {
-                            console.log("glue: onMessage event call failed: " + err.message);
-                        }  
-                    }
-                }
-                else {
-                    console.log("glue: received invalid data from server with command '" + cmd + "' and data '" + data + "'!");
-                }
-            };
-
+        // Connect during the next tick.
+        // The user should be able to connect event functions first.
+        setTimeout(function() {
             // Set the state and trigger the event.
             if (reconnectCount > 0) {
                 currentState = States.Reconnecting;
@@ -355,30 +515,33 @@ var glue = function(host, options) {
 
             // Connect to the server
             bs.open();
-        }, 0);  
+        }, 0);
     };
 
     var resetSocket = function() {
-        // Reset previous backend sockets if defined.
-        if (!bs) {
-            return;
-        }
-
         // Stop the timeouts.
         stopConnectTimeout();
         stopPingTimeout();
 
-        // Set dummy functions.
-        // This will ensure, that previous old sockets don't
-        // call our valid methods. This would mix things up.
-        bs.onOpen = bs.onClose = bs.onMessage = bs.onError = function() {};
+        // Reset flags
+        isReady = false;
 
-        // Reset everything and close the socket.
-        bs.reset();
-        bs = false;
+        // Clear the buffer.
+        // This buffer is attached to each single socket.
+        beforeReadySendBuffer = [];
+
+        // Reset previous backend sockets if defined.
+        if (bs) {
+            // Set dummy functions.
+            // This will ensure, that previous old sockets don't
+            // call our valid methods. This would mix things up.
+            bs.onOpen = bs.onClose = bs.onMessage = bs.onError = function() {};
+
+            // Reset everything and close the socket.
+            bs.reset();
+            bs = false;
+        }
     };
-
-
 
     reconnect = function() {
         // Reset the socket.
@@ -411,11 +574,31 @@ var glue = function(host, options) {
         }, reconnectDelay);
     };
 
+    closeSocket = function() {
+        // Check if the socket exists.
+        if (!bs) {
+            return;
+        }
+
+        // Notify the server.
+        send(Commands.Close);
+
+        // Reset the socket.
+        resetSocket();
+
+        // Set the state and trigger the event.
+        currentState = States.Disconnected;
+        triggerEvent("disconnected");
+    };
+
 
 
     /*
      * Initialize section
      */
+
+    // Create the main channel.
+    mainChannel = channel.get(MainChannelName);
 
     // Prepare the host string.
     // Use the current location if the host string is not set.
@@ -446,52 +629,55 @@ var glue = function(host, options) {
      */
 
     var socket = {
-        // type returns the current used socket type as string. 
+        // version returns the glue socket protocol version.
+        version: function() {
+            return Version;
+        },
+
+        // type returns the current used socket type as string.
+        // Either "WebSocket" or "AjaxSocket".
         type: function() {
             return currentSocketType;
         },
 
-        // state returns the current socket state as string. 
+        // state returns the current socket state as string.
+        // Following states are available:
+        //  - "disconnected"
+        //  - "connecting"
+        //  - "reconnecting"
+        //  - "connected"
         state: function() {
             return currentState;
         },
 
         // send a data string to the server.
-        // returns
+        // One optional discard callback can be passed.
+        // It is called if the data could not be send to the server.
+        // The data is passed as first argument to the discard callback.
+        // returns:
         //  1 if immediately send,
         //  0 if added to the send queue and
         //  -1 if discarded.
-        send: function(data) {
-            // Add the data to the send buffer if disconnected.
-            // They will be buffered for a short timeout to bridge short connection errors.
-            if (!bs || currentState !== States.Connected) {
-                // If already timed out, just discard this.
-                if (resetSendBufferTimedOut) {
-                    return -1;
-                }
-
-                // Reset the send buffer after a specific timeout.
-                startResetSendBufferTimeout();
-
-                // Append to the buffer.
-                sendBuffer.push(data);
-
-                return 0;
-            }
-
-            // Send the data with the data command to the server.
-            bs.send(Commands.Data + data);
-
-            return 1;
+        send: function(data, discardCallback) {
+            mainChannel.send(data, discardCallback);
         },
 
         // onMessage sets the function which is triggered as soon as a message is received.
         onMessage: function(f) {
-            onMessageFunc = f;
+            mainChannel.onMessage(f);
         },
 
         // on binds event functions to events.
         // This function is equivalent to jQuery's on method.
+        // Following events are available:
+        //  - "connected"
+        //  - "connecting"
+        //  - "disconnected"
+        //  - "reconnecting"
+        //  - "error"
+        //  - "connect_timeout"
+        //  - "timeout"
+        //  - "discard_send_buffer"
         on: function() {
             var s = $(socket);
             s.on.apply(s, arguments);
@@ -514,22 +700,13 @@ var glue = function(host, options) {
 
         // close the socket connection.
         close: function() {
-            // Check if the socket exists.
-            if (!bs) {
-                return;
-            }
+            closeSocket();
+        },
 
-            // Notify the server.
-            if (currentState === States.Connected) {
-                bs.send(Commands.Close);
-            }
-
-            // Reset the socket.
-            resetSocket();
-
-            // Set the state and trigger the event.
-            currentState = States.Disconnected;
-            triggerEvent("disconnected");
+        // channel returns the given channel object specified by name
+        // to communicate in a separate channel than the default one.
+        channel: function(name) {
+            return channel.get(name);
         }
     };
 

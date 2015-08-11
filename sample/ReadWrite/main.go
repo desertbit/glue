@@ -34,6 +34,11 @@ func main() {
 	// Set the maximum number of CPUs that can be executing simultaneously.
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	// Release the glue library on defer.
+	// This will block new incoming connections
+	// and close all current active sockets.
+	defer glue.Release()
+
 	// Set the glue event function.
 	glue.OnNewSocket(onNewSocket)
 
