@@ -1,6 +1,7 @@
 TODO
 ====
 
+-	Implement a go glue client library.
 -	Add some testing.
 -	Extend the sample (Chat example?).
 -	Improve the documentation.
