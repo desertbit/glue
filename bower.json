@@ -10,7 +10,7 @@
   "keywords": [
     "[\"socket\"]"
   ],
-  "license": "Apache-2.0",
+  "license": "GPL3",
   "ignore": [
     "**/*",
     "!client/*",
