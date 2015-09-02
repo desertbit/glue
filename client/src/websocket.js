@@ -44,7 +44,7 @@ var newWebSocket = function () {
             } else {
                 url = "ws" + host.substr(4);
             }
-            url += "/glue/ws";
+            url += options.baseURL + "ws";
 
             // Open the websocket connection
             ws = new WebSocket(url);

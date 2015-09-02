@@ -16,7 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package backend
+// Package ajaxsocket provides the ajax socket implementation.
+package ajaxsocket
 
 import (
 	"io"
@@ -26,17 +27,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/desertbit/glue/backend/closer"
+	"github.com/Sirupsen/logrus"
 	"github.com/desertbit/glue/log"
 	"github.com/desertbit/glue/utils"
-
-	"github.com/Sirupsen/logrus"
 )
 
-const (
-	// HTTP upgrader url.
-	httpAjaxSocketURL = httpBaseSocketURL + "ajax"
+//#################//
+//### Constants ###//
+//#################//
 
+const (
 	ajaxPollTimeout     = 35 * time.Second
 	ajaxUIDLength       = 10
 	ajaxPollTokenLength = 7
@@ -49,99 +49,25 @@ const (
 	ajaxSocketDataKeyPoll   = "o"
 )
 
-var (
-	ajaxSockets = make(map[string]*ajaxSocket)
-	ajaxMutex   sync.Mutex
-)
+//########################//
+//### Ajax Server type ###//
+//##################äääää#//
 
-func init() {
-	// Create the ajax socket handler.
-	http.HandleFunc(httpAjaxSocketURL, handleAjaxSocket)
+type Server struct {
+	sockets      map[string]*Socket
+	socketsMutex sync.Mutex
+
+	onNewSocketConnection func(*Socket)
 }
 
-//#######################//
-//### AjaxSocket type ###//
-//#######################//
-
-type ajaxSocket struct {
-	uid        string
-	pollToken  string
-	userAgent  string
-	remoteAddr string
-
-	closer  *closer.Closer
-	onClose OnCloseFunc
-
-	writeChan chan string
-	readChan  chan string
-}
-
-// Create a new ajax socket.
-func newAjaxSocket() *ajaxSocket {
-	a := &ajaxSocket{
-		writeChan: make(chan string, writeChanSize),
-		readChan:  make(chan string, readChanSize),
+func NewServer(onNewSocketConnectionFunc func(*Socket)) *Server {
+	return &Server{
+		sockets:               make(map[string]*Socket),
+		onNewSocketConnection: onNewSocketConnectionFunc,
 	}
-
-	// Set the closer function.
-	a.closer = closer.New(func() {
-		// Remove the ajax socket from the map.
-		if len(a.uid) > 0 {
-			ajaxMutex.Lock()
-			delete(ajaxSockets, a.uid)
-			ajaxMutex.Unlock()
-		}
-
-		// Trigger the onClose function if defined.
-		if a.onClose != nil {
-			a.onClose()
-		}
-	})
-
-	return a
 }
 
-//############################################//
-//### AjaxSocket - Interface implementation ###//
-//############################################//
-
-func (a *ajaxSocket) Type() SocketType {
-	return TypeAjaxSocket
-}
-
-func (a *ajaxSocket) RemoteAddr() string {
-	return a.remoteAddr
-}
-
-func (a *ajaxSocket) UserAgent() string {
-	return a.userAgent
-}
-
-func (a *ajaxSocket) Close() {
-	a.closer.Close()
-}
-
-func (a *ajaxSocket) OnClose(f OnCloseFunc) {
-	a.onClose = f
-}
-
-func (a *ajaxSocket) IsClosed() bool {
-	return a.closer.IsClosed()
-}
-
-func (a *ajaxSocket) WriteChan() chan string {
-	return a.writeChan
-}
-
-func (a *ajaxSocket) ReadChan() chan string {
-	return a.readChan
-}
-
-//############################//
-//### AjaxSocket - Private ###//
-//############################//
-
-func handleAjaxSocket(w http.ResponseWriter, req *http.Request) {
+func (s *Server) HandleRequest(w http.ResponseWriter, req *http.Request) {
 	// Get the remote address and user agent.
 	remoteAddr, _ := utils.RemoteAddress(req)
 	userAgent := req.Header.Get("User-Agent")
@@ -203,11 +129,11 @@ func handleAjaxSocket(w http.ResponseWriter, req *http.Request) {
 	// Handle the specific request.
 	switch key {
 	case ajaxSocketDataKeyInit:
-		initAjaxRequest(remoteAddr, userAgent, w)
+		s.initAjaxRequest(remoteAddr, userAgent, w)
 	case ajaxSocketDataKeyPoll:
-		pollAjaxRequest(value, remoteAddr, userAgent, data, w)
+		s.pollAjaxRequest(value, remoteAddr, userAgent, data, w)
 	case ajaxSocketDataKeyPush:
-		pushAjaxRequest(value, remoteAddr, userAgent, data, w)
+		s.pushAjaxRequest(value, remoteAddr, userAgent, data, w)
 	default:
 		log.L.WithFields(logrus.Fields{
 			"remoteAddress": remoteAddr,
@@ -221,18 +147,18 @@ func handleAjaxSocket(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
+func (s *Server) initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
 	var uid string
 
 	// Create a new ajax socket value.
-	a := newAjaxSocket()
+	a := newSocket(s)
 	a.remoteAddr = remoteAddr
 	a.userAgent = userAgent
 
 	func() {
 		// Lock the mutex
-		ajaxMutex.Lock()
-		defer ajaxMutex.Unlock()
+		s.socketsMutex.Lock()
+		defer s.socketsMutex.Unlock()
 
 		// Obtain a new unique ID.
 		for {
@@ -241,7 +167,7 @@ func initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
 
 			// Check if the new UID is already used.
 			// This is very unlikely, but we have to check this!
-			_, ok := ajaxSockets[uid]
+			_, ok := s.sockets[uid]
 			if !ok {
 				// Break the loop if the UID is unique.
 				break
@@ -252,7 +178,7 @@ func initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
 		a.uid = uid
 
 		// Add the new ajax socket to the map.
-		ajaxSockets[uid] = a
+		s.sockets[uid] = a
 	}()
 
 	// Create a new poll token.
@@ -262,18 +188,18 @@ func initAjaxRequest(remoteAddr, userAgent string, w http.ResponseWriter) {
 	io.WriteString(w, uid+ajaxSocketDataDelimiter+a.pollToken)
 
 	// Trigger the event that a new socket connection was made.
-	triggerOnNewSocketConnection(a)
+	s.onNewSocketConnection(a)
 }
 
-func pushAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
+func (s *Server) pushAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
 	// Obtain the ajax socket with the uid.
-	a := func() *ajaxSocket {
+	a := func() *Socket {
 		// Lock the mutex.
-		ajaxMutex.Lock()
-		defer ajaxMutex.Unlock()
+		s.socketsMutex.Lock()
+		defer s.socketsMutex.Unlock()
 
 		// Obtain the ajax socket with the uid-
-		a, ok := ajaxSockets[uid]
+		a, ok := s.sockets[uid]
 		if !ok {
 			return nil
 		}
@@ -324,15 +250,15 @@ func pushAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWri
 	a.readChan <- data
 }
 
-func pollAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
+func (s *Server) pollAjaxRequest(uid, remoteAddr, userAgent, data string, w http.ResponseWriter) {
 	// Obtain the ajax socket with the uid.
-	a := func() *ajaxSocket {
+	a := func() *Socket {
 		// Lock the mutex.
-		ajaxMutex.Lock()
-		defer ajaxMutex.Unlock()
+		s.socketsMutex.Lock()
+		defer s.socketsMutex.Unlock()
 
 		// Obtain the ajax socket with the uid-
-		a, ok := ajaxSockets[uid]
+		a, ok := s.sockets[uid]
 		if !ok {
 			return nil
 		}

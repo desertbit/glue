@@ -16,8 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package glue - Robust Go and Javascript Socket Library.
-// This library is thread-safe.
 package glue
 
 import (
@@ -42,12 +40,15 @@ import (
 // ######
 const (
 	// Version holds the Glue Socket Protocol Version as string.
-	Version = "1.2.0"
+	Version = "1.3.0"
 )
 
 // Private
 // #######
 const (
+	// The constant length of the random socket ID.
+	socketIDLength = 20
+
 	// Send pings to the peer with this period.
 	pingPeriod = 30 * time.Second
 
@@ -78,23 +79,9 @@ var (
 	ErrReadTimeout  = errors.New("the read timeout was reached")
 )
 
-var (
-	// Private
-	// #######
-
-	block       bool
-	onNewSocket = func(*Socket) {} // Initialize with dummy function to remove nil check.
-
-	sockets      = make(map[string]*Socket) // A map holding all active current sockets.
-	socketsMutex sync.Mutex
-)
-
 //####################//
 //### Public Types ###//
 //####################//
-
-// OnNewSocketFunc is an event function.
-type OnNewSocketFunc func(s *Socket)
 
 // OnCloseFunc is an event function.
 type OnCloseFunc func()
@@ -127,9 +114,11 @@ type Socket struct {
 
 	// Private
 	// #######
+	server *Server
+	bs     backend.BackendSocket
 
-	id string // Unique socket ID.
-	bs backend.BackendSocket
+	id            string // Unique socket ID.
+	isInitialized bool
 
 	channels    *channels
 	mainChannel *Channel
@@ -147,11 +136,13 @@ type Socket struct {
 }
 
 // newSocket creates a new socket and initializes it.
-func newSocket(bs backend.BackendSocket) *Socket {
+func newSocket(server *Server, bs backend.BackendSocket) *Socket {
 	// Create a new socket value.
 	s := &Socket{
-		id:       utils.UUID(),
-		bs:       bs,
+		server: server,
+		bs:     bs,
+
+		id:       utils.RandomString(socketIDLength),
 		channels: newChannels(),
 
 		writeChan:    bs.WriteChan(),
@@ -171,6 +162,26 @@ func newSocket(bs backend.BackendSocket) *Socket {
 	// Stop the timeout again. It will be started by the ping timer.
 	s.pingTimeout.Stop()
 
+	// Add the new socket to the active sockets map.
+	// If the ID is already present, then generate a new one.
+	func() {
+		// Lock the mutex.
+		s.server.socketsMutex.Lock()
+		defer s.server.socketsMutex.Unlock()
+
+		// Be sure that the ID is unique.
+		for {
+			if _, ok := s.server.sockets[s.id]; !ok {
+				break
+			}
+
+			s.id = utils.RandomString(socketIDLength)
+		}
+
+		// Add the socket to the map.
+		s.server.sockets[s.id] = s
+	}()
+
 	// Start the loops and handlers in new goroutines.
 	go s.pingTimeoutHandler()
 	go s.readLoop()
@@ -180,8 +191,16 @@ func newSocket(bs backend.BackendSocket) *Socket {
 }
 
 // ID returns the socket's unique ID.
+// This ID is a totally random.
 func (s *Socket) ID() string {
 	return s.id
+}
+
+// IsInitialized returns a boolean indicating if a socket is initialized
+// and ready to be used. This flag is set to true after the OnNewSocket function
+// has returned for this socket.
+func (s *Socket) IsInitialized() bool {
+	return s.isInitialized
 }
 
 // RemoteAddr returns the remote address of the client.
@@ -281,10 +300,10 @@ func (s *Socket) onClose() {
 	// Remove the socket again from the active sockets map.
 	func() {
 		// Lock the mutex.
-		socketsMutex.Lock()
-		defer socketsMutex.Unlock()
+		s.server.socketsMutex.Lock()
+		defer s.server.socketsMutex.Unlock()
 
-		delete(sockets, s.id)
+		delete(s.server.sockets, s.id)
 	}()
 
 	// Trigger the on close event if defined.
@@ -453,81 +472,9 @@ func (s *Socket) handleRead(cmd, data string) error {
 	return nil
 }
 
-//##############//
-//### Public ###//
-//##############//
-
-// Block new incomming connections.
-func Block(b bool) {
-	block = b
-}
-
-// OnNewSocket sets the event function which is
-// triggered if a new socket connection was made.
-// The event function must not block! As soon as the event function
-// returns, the socket is added to the active sockets map.
-func OnNewSocket(f OnNewSocketFunc) {
-	onNewSocket = f
-}
-
-// Sockets returns a list of all current connected sockets.
-// Hint: Sockets are added to the active sockets list after the OnNewSocket
-// event function is called.
-func Sockets() []*Socket {
-	// Lock the mutex.
-	socketsMutex.Lock()
-	defer socketsMutex.Unlock()
-
-	// Create the slice.
-	list := make([]*Socket, len(sockets))
-
-	// Add all sockets from the map.
-	i := 0
-	for _, s := range sockets {
-		list[i] = s
-		i++
-	}
-
-	return list
-}
-
-// Release this package. This will block all new incomming socket connections
-// and close all current connected sockets.
-func Release() {
-	// Block all new incomming socket connections.
-	Block(true)
-
-	// Wait for a little moment, so new incomming sockets are added
-	// to the sockets active list.
-	time.Sleep(200 * time.Millisecond)
-
-	// Close all current connected sockets.
-	sockets := Sockets()
-	for _, s := range sockets {
-		s.Close()
-	}
-}
-
 //###############//
 //### Private ###//
 //###############//
-
-func init() {
-	// Set the event function.
-	backend.OnNewSocketConnection(onNewSocketConnection)
-}
-
-func onNewSocketConnection(bs backend.BackendSocket) {
-	// Close the socket if incomming connections should be blocked.
-	if block {
-		bs.Close()
-		return
-	}
-
-	// Create a new socket value.
-	// The goroutines are started automatically.
-	newSocket(bs)
-}
 
 func initSocket(s *Socket, dataJSON string) {
 	// Handle the socket initialization in an anonymous function
@@ -592,21 +539,9 @@ func initSocket(s *Socket, dataJSON string) {
 		}()
 
 		// Trigger the event function.
-		onNewSocket(s)
+		s.server.onNewSocket(s)
 	}()
 
-	// Just return if the socket was closed by the triggered event function.
-	if s.IsClosed() {
-		return
-	}
-
-	// Add the new socket to the active sockets map.
-	func() {
-		// Lock the mutex.
-		socketsMutex.Lock()
-		defer socketsMutex.Unlock()
-
-		// Add the socket to the map.
-		sockets[s.id] = s
-	}()
+	// Update the initialized flag.
+	s.isInitialized = true
 }

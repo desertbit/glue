@@ -3,6 +3,17 @@ Change Log
 
 All notable changes to this project will be documented in this file.
 
+1.3.0 - 2015-09-02
+------------------
+
+-	Restructured backend sockets.
+-	Moved glue methods into a server struct.
+-	New socket ID generation.
+-	Added support to set custom HTTP base URLs.
+-	Added server options.
+-	HTTP server is now started by the glue server.
+-	Added support for custom HTTP multiplexers.
+
 1.2.0 - 2015-08-11
 ------------------
 

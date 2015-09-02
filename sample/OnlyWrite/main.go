@@ -21,38 +21,34 @@ package main
 import (
 	"log"
 	"net/http"
-	"runtime"
 
 	"github.com/desertbit/glue"
 )
 
-const (
-	ListenAddress = ":8888"
-)
-
 func main() {
-	// Set the maximum number of CPUs that can be executing simultaneously.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	// Release the glue library on defer.
-	// This will block new incoming connections
-	// and close all current active sockets.
-	defer glue.Release()
-
-	// Set the glue event function.
-	glue.OnNewSocket(onNewSocket)
-
 	// Set the http file server.
 	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("public"))))
 	http.Handle("/dist/", http.StripPrefix("/dist/", http.FileServer(http.Dir("../../client/dist"))))
 
-	// Start the http server.
-	err := http.ListenAndServe(ListenAddress, nil)
+	// Create a new glue server.
+	server := glue.NewServer(glue.Options{
+		HTTPListenAddress: ":8080",
+	})
+
+	// Release the glue server on defer.
+	// This will block new incoming connections
+	// and close all current active sockets.
+	defer server.Release()
+
+	// Set the glue event function to handle new incoming socket connections.
+	server.OnNewSocket(onNewSocket)
+
+	// Run the glue server.
+	err := server.Run()
 	if err != nil {
-		log.Fatalf("ListenAndServe: %v", err)
+		log.Fatalf("Glue Run: %v", err)
 	}
 }
-
 func onNewSocket(s *glue.Socket) {
 	// Set a function which is triggered as soon as the socket is closed.
 	s.OnClose(func() {

@@ -16,25 +16,25 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package backend
+package websocket
 
 import (
 	"io"
-	"net/http"
 	"time"
 
 	"github.com/desertbit/glue/backend/closer"
+	"github.com/desertbit/glue/backend/global"
 	"github.com/desertbit/glue/log"
-	"github.com/desertbit/glue/utils"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
 )
 
-const (
-	// HTTP upgrader url.
-	httpWebSocketURL = httpBaseSocketURL + "ws"
+//#################//
+//### Constants ###//
+//#################//
 
+const (
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
 
@@ -45,28 +45,15 @@ const (
 	maxMessageSize = 0
 )
 
-var (
-	// Websocket upgrader
-	upgrader = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-)
-
-func init() {
-	// Create the websocket handler
-	http.HandleFunc(httpWebSocketURL, handleWebSocket)
-}
-
 //######################//
 //### WebSocket type ###//
 //######################//
 
-type webSocket struct {
+type Socket struct {
 	ws *websocket.Conn
 
 	closer  *closer.Closer
-	onClose OnCloseFunc
+	onClose func()
 
 	writeChan chan string
 	readChan  chan string
@@ -75,12 +62,12 @@ type webSocket struct {
 	remoteAddrFunc func() string
 }
 
-// Create a new websocket type.
-func newWebSocket(ws *websocket.Conn) *webSocket {
-	w := &webSocket{
+// Create a new websocket value.
+func newSocket(ws *websocket.Conn) *Socket {
+	w := &Socket{
 		ws:        ws,
-		writeChan: make(chan string, writeChanSize),
-		readChan:  make(chan string, readChanSize),
+		writeChan: make(chan string, global.WriteChanSize),
+		readChan:  make(chan string, global.ReadChanSize),
 	}
 
 	// Set the closer function.
@@ -105,35 +92,35 @@ func newWebSocket(ws *websocket.Conn) *webSocket {
 //### WebSocket - Interface implementation ###//
 //############################################//
 
-func (w *webSocket) Type() SocketType {
-	return TypeWebSocket
+func (w *Socket) Type() global.SocketType {
+	return global.TypeWebSocket
 }
 
-func (w *webSocket) RemoteAddr() string {
+func (w *Socket) RemoteAddr() string {
 	return w.remoteAddrFunc()
 }
 
-func (w *webSocket) UserAgent() string {
+func (w *Socket) UserAgent() string {
 	return w.userAgent
 }
 
-func (w *webSocket) Close() {
+func (w *Socket) Close() {
 	w.closer.Close()
 }
 
-func (w *webSocket) OnClose(f OnCloseFunc) {
+func (w *Socket) OnClose(f func()) {
 	w.onClose = f
 }
 
-func (w *webSocket) IsClosed() bool {
+func (w *Socket) IsClosed() bool {
 	return w.closer.IsClosed()
 }
 
-func (w *webSocket) WriteChan() chan string {
+func (w *Socket) WriteChan() chan string {
 	return w.writeChan
 }
 
-func (w *webSocket) ReadChan() chan string {
+func (w *Socket) ReadChan() chan string {
 	return w.readChan
 }
 
@@ -142,13 +129,13 @@ func (w *webSocket) ReadChan() chan string {
 //###########################//
 
 // write writes a message with the given message type and payload.
-func (w *webSocket) write(mt int, payload []byte) error {
+func (w *Socket) write(mt int, payload []byte) error {
 	w.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	return w.ws.WriteMessage(mt, payload)
 }
 
 // readLoop reads messages from the websocket
-func (w *webSocket) readLoop() {
+func (w *Socket) readLoop() {
 	defer func() {
 		// Close the socket on defer.
 		w.Close()
@@ -187,7 +174,7 @@ func (w *webSocket) readLoop() {
 	}
 }
 
-func (w *webSocket) writeLoop() {
+func (w *Socket) writeLoop() {
 	for {
 		select {
 		case data := <-w.writeChan:
@@ -209,67 +196,4 @@ func (w *webSocket) writeLoop() {
 			return
 		}
 	}
-}
-
-//####################//
-//### HTTP Handler ###//
-//####################//
-
-func handleWebSocket(rw http.ResponseWriter, req *http.Request) {
-	// Get the remote address and user agent.
-	remoteAddr, requestRemoteAddrMethodUsed := utils.RemoteAddress(req)
-	userAgent := req.Header.Get("User-Agent")
-
-	// This has to be a GET request.
-	if req.Method != "GET" {
-		log.L.WithFields(logrus.Fields{
-			"remoteAddress": remoteAddr,
-			"userAgent":     userAgent,
-			"method":        req.Method,
-		}).Warning("client accessed websocket handler with an invalid request method")
-
-		http.Error(rw, "Method not allowed", 405)
-		return
-	}
-
-	// Upgrade to a websocket.
-	ws, err := upgrader.Upgrade(rw, req, nil)
-	if err != nil {
-		log.L.WithFields(logrus.Fields{
-			"remoteAddress": remoteAddr,
-			"userAgent":     userAgent,
-		}).Warningf("failed to upgrade to websocket layer: %v", err)
-
-		http.Error(rw, "Bad Request", 400)
-		return
-	}
-
-	// Create a new websocket value.
-	w := newWebSocket(ws)
-
-	// Set the user agent.
-	w.userAgent = userAgent
-
-	// Set the remote address get function.
-	if requestRemoteAddrMethodUsed {
-		// Obtain the remote address from the websocket directly.
-		w.remoteAddrFunc = func() string {
-			return utils.RemovePortFromRemoteAddr(w.ws.RemoteAddr().String())
-		}
-	} else {
-		// Obtain the remote address from the current string.
-		// It was obtained using the request Headers. So don't use the
-		// websocket RemoteAddr() method, because it does not return
-		// the clients IP address.
-		w.remoteAddrFunc = func() string {
-			return remoteAddr
-		}
-	}
-
-	// Start the handlers in new goroutines.
-	go w.writeLoop()
-	go w.readLoop()
-
-	// Trigger the event that a new socket connection was made.
-	triggerOnNewSocketConnection(w)
 }

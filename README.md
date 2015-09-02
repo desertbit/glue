@@ -60,6 +60,9 @@ Optional Javascript options which can be passed to Glue:
 var host = "https://foo.bar";
 
 var opts = {
+    // The base URL is appended to the host string. This value has to match with the server value.
+    baseURL: "/glue/",
+
     // Force a socket type.
     // Values: false, "WebSocket", "AjaxSocket"
     forceSocketType: false,
@@ -165,6 +168,21 @@ c.send(data, discardCallback);
 ### Server - Go Library
 
 Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
+
+#### Use a custom HTTP multiplexer
+
+If you choose to use a custom HTTP multiplexer, then it is possible to deactivate the automatic HTTP handler registration of glue.
+
+```go
+// Create a new glue server without configuring and starting the HTTP server.
+server := glue.NewServer(glue.Options{
+	HTTPSocketType: HTTPSocketTypeNone,
+})
+
+//...
+```
+
+The glue server implements the ServeHTTP method of the HTTP Handler interface of the http package. Use this to register the glue HTTP handler with a custom multiplexer. Be aware, that the URL of the custom HTTP handler has to match with the glue HTTPHandleURL options string.
 
 #### Reading data
 
@@ -305,33 +323,31 @@ This socket library is very straightforward to use. Check the [sample directory]
 Read data from the socket with a read event function. Check the sample directory for other ways of reading data from the socket.
 
 ```go
-package main
-
 import (
 	"log"
 	"net/http"
-	"runtime"
 
 	"github.com/desertbit/glue"
 )
 
-const (
-	ListenAddress = ":8888"
-)
-
 func main() {
-	// Release the glue library on defer.
+	// Create a new glue server.
+	server := glue.NewServer(glue.Options{
+		HTTPListenAddress: ":8080",
+	})
+
+	// Release the glue server on defer.
 	// This will block new incoming connections
 	// and close all current active sockets.
-	defer glue.Release()
+	defer server.Release()
 
-	// Set the glue event function.
-	glue.OnNewSocket(onNewSocket)
+	// Set the glue event function to handle new incoming socket connections.
+	server.OnNewSocket(onNewSocket)
 
-	// Start the http server.
-	err := http.ListenAndServe(ListenAddress, nil)
+	// Run the glue server.
+	err := server.Run()
 	if err != nil {
-		log.Fatalf("ListenAndServe: %v", err)
+		log.Fatalf("Glue Run: %v", err)
 	}
 }
 

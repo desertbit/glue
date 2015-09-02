@@ -30,7 +30,7 @@ var glue = function(host, options) {
      * Constants
      */
 
-    var Version         = "1.2.0",
+    var Version         = "1.3.0",
         Delimiter       = "&",
         MainChannelName = "m";
 
@@ -57,6 +57,9 @@ var glue = function(host, options) {
     };
 
     var DefaultOptions = {
+        // The base URL is appended to the host string. This value has to match with the server value.
+        baseURL: "/glue/",
+
         // Force a socket type.
         // Values: false, "WebSocket", "AjaxSocket"
         forceSocketType: false,
@@ -617,6 +620,15 @@ var glue = function(host, options) {
     // The max value can't be smaller than the delay.
     if (options.reconnectDelayMax < options.reconnectDelay) {
         options.reconnectDelayMax = options.reconnectDelay;
+    }
+
+    // Prepare the base URL.
+    // The base URL has to start and end with a slash.
+    if (options.baseURL.indexOf("/") !== 0) {
+        options.baseURL = "/" + options.baseURL;
+    }
+    if (options.baseURL.slice(-1) !== "/") {
+        options.baseURL = options.baseURL + "/";
     }
 
     // Create the initial backend socket and establish a connection to the server.

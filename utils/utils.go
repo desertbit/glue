@@ -25,8 +25,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"github.com/satori/go.uuid"
 )
 
 //#################//
@@ -40,11 +38,6 @@ const (
 //########################//
 //### Public Functions ###//
 //########################//
-
-// UUID returns a new unique version 4 UUID as string.
-func UUID() string {
-	return uuid.NewV4().String()
-}
 
 // RandomString generates a random string.
 func RandomString(n int) string {

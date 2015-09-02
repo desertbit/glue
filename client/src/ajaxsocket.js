@@ -26,7 +26,7 @@ var newAjaxSocket = function () {
      * Constants
      */
 
-    var ajaxHost = host + "/glue/ajax",
+    var ajaxHost = host + options.baseURL + "ajax",
         sendTimeout = 8000,
         pollTimeout = 45000;
 
