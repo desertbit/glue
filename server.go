@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -142,11 +141,6 @@ func (s *Server) Release() {
 func (s *Server) Run() error {
 	// Skip if set to none.
 	if s.options.HTTPSocketType != HTTPSocketTypeNone {
-		// Be sure that the handle URL ends with a slash.
-		if !strings.HasSuffix(s.options.HTTPHandleURL, "/") {
-			s.options.HTTPHandleURL += "/"
-		}
-
 		// Set the base glue HTTP handler.
 		http.Handle(s.options.HTTPHandleURL, s)
 

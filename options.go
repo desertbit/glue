@@ -18,6 +18,8 @@
 
 package glue
 
+import "strings"
+
 //#################//
 //### Constants ###//
 //#################//
@@ -73,5 +75,10 @@ func (o *Options) SetDefaults() {
 	// Set the handle URL.
 	if len(o.HTTPHandleURL) == 0 {
 		o.HTTPHandleURL = "/glue/"
+	}
+
+	// Be sure that the handle URL ends with a slash.
+	if !strings.HasSuffix(o.HTTPHandleURL, "/") {
+		o.HTTPHandleURL += "/"
 	}
 }
