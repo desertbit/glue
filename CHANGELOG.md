@@ -11,6 +11,7 @@ This project follows the [Semantic Versioning](http://semver.org/).
 -   Updated Version
 -   Added semantic version check with backward compatibility check.
 -   Implemented ajax poll timeout and close handling.
+-   Suppress unnecessary websocket close error message.
 
 1.3.0 - 2015-09-02
 ------------------
