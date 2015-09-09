@@ -2,6 +2,15 @@ Change Log
 ==========
 
 All notable changes to this project will be documented in this file.
+This project follows the [Semantic Versioning](http://semver.org/).
+
+1.3.1 - 2015-09-09
+------------------
+
+-   Javascript client: code cleanup and small fixes (JSHint).
+-   Updated Version
+-   Added semantic version check with backward compatibility check.
+-   Implemented ajax poll timeout and close handling.
 
 1.3.0 - 2015-09-02
 ------------------

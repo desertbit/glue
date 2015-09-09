@@ -30,7 +30,7 @@ var glue = function(host, options) {
      * Constants
      */
 
-    var Version         = "1.3.0",
+    var Version         = "1.3.1",
         Delimiter       = "&",
         MainChannelName = "m";
 
@@ -40,13 +40,14 @@ var glue = function(host, options) {
     };
 
     var Commands = {
-        Len: 	          2,
-        Init:           'in',
-        Ping:           'pi',
-        Pong:           'po',
-        Close: 	        'cl',
-        Invalid:        'iv',
-        ChannelData:    'cd'
+        Len: 	            2,
+        Init:               'in',
+        Ping:               'pi',
+        Pong:               'po',
+        Close: 	            'cl',
+        Invalid:            'iv',
+        DontAutoReconnect:  'dr',
+        ChannelData:        'cd'
     };
 
     var States = {
@@ -73,7 +74,7 @@ var glue = function(host, options) {
         pingReconnectTimeout:   5000,
 
         // Whenever to automatically reconnect if the connection was lost.
-        reconnected:        true,
+        reconnect:          true,
         reconnectDelay:     1000,
         reconnectDelayMax:  5000,
         // To disable set to 0 (endless).
@@ -96,6 +97,7 @@ var glue = function(host, options) {
         currentSocketType,
         currentState            = States.Disconnected,
         reconnectCount          = 0,
+        autoReconnectDisabled   = false,
         connectTimeout          = false,
         pingTimeout             = false,
         pingReconnectTimeout    = false,
@@ -481,6 +483,13 @@ var glue = function(host, options) {
                 // Log.
                 console.log("glue: server replied with an invalid request notification!");
             }
+            else if (cmd === Commands.DontAutoReconnect) {
+                // Disable auto reconnections.
+                autoReconnectDisabled = true;
+
+                // Log.
+                console.log("glue: server replied with an don't automatically reconnect request. This might be due to an incompatible protocol version.");
+            }
             else if (cmd === Commands.Init) {
                 initSocket(data);
             }
@@ -501,7 +510,7 @@ var glue = function(host, options) {
         };
 
         // Connect during the next tick.
-        // The user should be able to connect event functions first.
+        // The user should be able to connect the event functions first.
         setTimeout(function() {
             // Set the state and trigger the event.
             if (reconnectCount > 0) {
@@ -551,9 +560,9 @@ var glue = function(host, options) {
         resetSocket();
 
         // If no reconnections should be made or more than max
-        // reconnect attempts where made, trigger the error event.
+        // reconnect attempts where made, trigger the disconnected event.
         if ((options.reconnectAttempts > 0 && reconnectCount > options.reconnectAttempts) ||
-            options.reconnect === false)
+            options.reconnect === false || autoReconnectDisabled)
         {
             // Set the state and trigger the event.
             currentState = States.Disconnected;
@@ -703,8 +712,9 @@ var glue = function(host, options) {
                 return;
             }
 
-            // Reset the reconnect count.
+            // Reset the reconnect count and the auto reconnect disabled flag.
             reconnectCount = 0;
+            autoReconnectDisabled = false;
 
             // Reconnect the socket.
             reconnect();

@@ -76,7 +76,7 @@ var opts = {
     pingReconnectTimeout:   5000,
 
     // Whenever to automatically reconnect if the connection was lost.
-    reconnected:        true,
+    reconnect:          true,
     reconnectDelay:     1000,
     reconnectDelayMax:  5000,
     // To disable set to 0 (endless).

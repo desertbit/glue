@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/blang/semver"
 	"github.com/desertbit/glue/backend"
 	"github.com/desertbit/glue/log"
 	"github.com/desertbit/glue/utils"
@@ -40,7 +41,8 @@ import (
 // ######
 const (
 	// Version holds the Glue Socket Protocol Version as string.
-	Version = "1.3.0"
+	// This project follows the Semantic Versioning (http://semver.org/).
+	Version = "1.3.1"
 )
 
 // Private
@@ -60,13 +62,14 @@ const (
 
 	// Socket commands. Must be two character long.
 	// ############################################
-	cmdLen         = 2
-	cmdInit        = "in"
-	cmdPing        = "pi"
-	cmdPong        = "po"
-	cmdClose       = "cl"
-	cmdInvalid     = "iv"
-	cmdChannelData = "cd"
+	cmdLen               = 2
+	cmdInit              = "in"
+	cmdPing              = "pi"
+	cmdPong              = "po"
+	cmdClose             = "cl"
+	cmdInvalid           = "iv"
+	cmdDontAutoReconnect = "dr"
+	cmdChannelData       = "cd"
 )
 
 //#################//
@@ -77,6 +80,11 @@ const (
 var (
 	ErrSocketClosed = errors.New("the socket connection is closed")
 	ErrReadTimeout  = errors.New("the read timeout was reached")
+)
+
+// Private
+var (
+	serverVersion semver.Version
 )
 
 //####################//
@@ -476,10 +484,20 @@ func (s *Socket) handleRead(cmd, data string) error {
 //### Private ###//
 //###############//
 
+func init() {
+	var err error
+
+	// Parses the server version string and returns a validated Version.
+	serverVersion, err = semver.Make(Version)
+	if err != nil {
+		log.L.Fatalf("failed to parse glue server protocol version: %v", err)
+	}
+}
+
 func initSocket(s *Socket, dataJSON string) {
 	// Handle the socket initialization in an anonymous function
 	// to handle the error in a clean and simple way.
-	err := func() error {
+	dontAutoReconnect, err := func() (bool, error) {
 		// Handle received initialization data:
 		// ####################################
 
@@ -487,12 +505,21 @@ func initSocket(s *Socket, dataJSON string) {
 		var cData clientInitData
 		err := json.Unmarshal([]byte(dataJSON), &cData)
 		if err != nil {
-			return fmt.Errorf("json unmarshal init data: %v", err)
+			return false, fmt.Errorf("json unmarshal init data: %v", err)
 		}
 
-		// The client and server protocol versions have to match.
-		if cData.Version != Version {
-			return fmt.Errorf("client and server socket protocol version does not match: %s", cData.Version)
+		// Parses the client version string and returns a validated Version.
+		clientVersion, err := semver.Make(cData.Version)
+		if err != nil {
+			return false, fmt.Errorf("invalid client protocol version: %v", err)
+		}
+
+		// Check if the client protocol version is supported.
+		if clientVersion.Major != serverVersion.Major ||
+			clientVersion.Minor > serverVersion.Minor ||
+			(clientVersion.Minor == serverVersion.Minor && clientVersion.Patch > serverVersion.Patch) {
+			// The client should not automatically reconnect. Return true...
+			return true, fmt.Errorf("client socket protocol version is not supported: %s", cData.Version)
 		}
 
 		// Send initialization data:
@@ -504,17 +531,25 @@ func initSocket(s *Socket, dataJSON string) {
 		// Marshal the data to a JSON string.
 		dataJSON, err := json.Marshal(&data)
 		if err != nil {
-			return fmt.Errorf("json marshal init data: %v", err)
+			return false, fmt.Errorf("json marshal init data: %v", err)
 		}
 
 		// Send the init data to the client.
 		s.write(cmdInit + string(dataJSON))
 
-		return nil
+		return false, nil
 	}()
 
 	// Handle the error.
 	if err != nil {
+		if dontAutoReconnect {
+			// Tell the client to not automatically reconnect.
+			s.write(cmdDontAutoReconnect)
+
+			// Pause to be sure that the previous socket command gets send to the client.
+			time.Sleep(time.Second)
+		}
+
 		// Close the socket.
 		s.Close()
 
