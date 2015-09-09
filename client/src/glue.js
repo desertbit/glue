@@ -16,9 +16,9 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-'use strict';
-
 var glue = function(host, options) {
+    // Turn on strict mode.
+    'use strict';
 
     // Include the sockets layer implementations.
     @@include('./websocket.js')
@@ -37,7 +37,7 @@ var glue = function(host, options) {
     var SocketTypes = {
         WebSocket:  "WebSocket",
         AjaxSocket: "AjaxSocket"
-    }
+    };
 
     var Commands = {
         Len: 	          2,
@@ -146,7 +146,7 @@ var glue = function(host, options) {
     // Hint: the isReady flag has to be true before calling this function!
     var sendBeforeReadyBufferedData = function() {
         // Skip if empty.
-        if (beforeReadySendBuffer.length == 0) {
+        if (beforeReadySendBuffer.length === 0) {
             return;
         }
 
@@ -183,7 +183,7 @@ var glue = function(host, options) {
             resetSendBufferTimedOut = true;
 
             // Return if already empty.
-            if (sendBuffer.length == 0) {
+            if (sendBuffer.length === 0) {
                 return;
             }
 
@@ -214,7 +214,7 @@ var glue = function(host, options) {
         stopResetSendBufferTimeout();
 
         // Skip if empty.
-        if (sendBuffer.length == 0) {
+        if (sendBuffer.length === 0) {
             return;
         }
 
@@ -361,8 +361,8 @@ var glue = function(host, options) {
         }
 
         // Choose the socket layer depending on the browser support.
-        if ((!options.forceSocketType && window["WebSocket"])
-                || options.forceSocketType === SocketTypes.WebSocket)
+        if ((!options.forceSocketType && window.WebSocket) ||
+            options.forceSocketType === SocketTypes.WebSocket)
         {
             bsNewFunc = newWebSocket;
             currentSocketType = SocketTypes.WebSocket;
@@ -552,8 +552,8 @@ var glue = function(host, options) {
 
         // If no reconnections should be made or more than max
         // reconnect attempts where made, trigger the error event.
-        if ((options.reconnectAttempts > 0 && reconnectCount > options.reconnectAttempts)
-                || options.reconnect === false)
+        if ((options.reconnectAttempts > 0 && reconnectCount > options.reconnectAttempts) ||
+            options.reconnect === false)
         {
             // Set the state and trigger the event.
             currentState = States.Disconnected;

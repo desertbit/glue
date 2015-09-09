@@ -20,12 +20,13 @@
  *  This code lives inside the glue function.
  */
 
-var channel = new function() {
+var channel = (function() {
     /*
      * Variables
      */
 
-     var channels = {}; // Object as key value map.
+     var instance = {}, // Our public instance object returned by this function.
+         channels = {}; // Object as key value map.
 
 
 
@@ -34,46 +35,41 @@ var channel = new function() {
       */
 
      var newChannel = function(name) {
-         // Create and return the channel object.
-         return new function() {
-             // Private
-             // ######
-
-             var parent = this;
-
-             // Public
-             // ######
-
+         // Create the channel object.
+         var channel = {
              // Set to a dummy function.
-             this.onMessageFunc = function() {};
-
-             // The public instance object.
-             // This is the value which is returned by glue.channel(...) function.
-             this.instance = {
-                 // onMessage sets the function which is triggered as soon as a message is received.
-                 onMessage: function(f) {
-                     parent.onMessageFunc = f;
-                 },
-
-                 // send a data string to the channel.
-                 // One optional discard callback can be passed.
-                 // It is called if the data could not be send to the server.
-                 // The data is passed as first argument to the discard callback.
-                 // returns:
-                 //  1 if immediately send,
-                 //  0 if added to the send queue and
-                 //  -1 if discarded.
-                 send: function(data, discardCallback) {
-                     // Discard empty data.
-                     if (!data) {
-                         return -1;
-                     }
-
-                     // Call the helper method and send the data to the channel.
-                     return sendBuffered(Commands.ChannelData, utils.marshalValues(name, data), discardCallback);
-                 }
-             };
+             onMessageFunc: function() {}
          };
+
+         // Set the channel public instance object.
+         // This is the value which is returned by the public glue.channel(...) function.
+         channel.instance = {
+             // onMessage sets the function which is triggered as soon as a message is received.
+             onMessage: function(f) {
+                 channel.onMessageFunc = f;
+             },
+
+             // send a data string to the channel.
+             // One optional discard callback can be passed.
+             // It is called if the data could not be send to the server.
+             // The data is passed as first argument to the discard callback.
+             // returns:
+             //  1 if immediately send,
+             //  0 if added to the send queue and
+             //  -1 if discarded.
+             send: function(data, discardCallback) {
+                 // Discard empty data.
+                 if (!data) {
+                     return -1;
+                 }
+
+                 // Call the helper method and send the data to the channel.
+                 return sendBuffered(Commands.ChannelData, utils.marshalValues(name, data), discardCallback);
+             }
+         };
+
+         // Return the channel object.
+         return channel;
      };
 
 
@@ -83,7 +79,7 @@ var channel = new function() {
       */
 
      // Get or create a channel if it does not exists.
-     this.get = function(name) {
+     instance.get = function(name) {
          if (!name) {
              return false;
          }
@@ -101,7 +97,7 @@ var channel = new function() {
          return c.instance;
      };
 
-     this.emitOnMessage = function(name, data) {
+     instance.emitOnMessage = function(name, data) {
          if (!name || !data) {
              return;
          }
@@ -122,4 +118,6 @@ var channel = new function() {
              return;
          }
      };
-};
+
+     return instance;
+})();

@@ -20,7 +20,15 @@
  *  This code lives inside the glue function.
  */
 
-var utils = new function() {
+var utils = (function() {
+    /*
+     * Variables
+     */
+
+     var instance = {}; // Our public instance object returned by this function.
+
+
+
     /*
      * Public Methods
      */
@@ -28,9 +36,9 @@ var utils = new function() {
     // unmarshalValues splits two values from a single string.
     // This function is chainable to extract multiple values.
     // An object with two strings (first, second) is returned.
-    this.unmarshalValues = function(data) {
+    instance.unmarshalValues = function(data) {
         if (!data) {
-            return false
+            return false;
         }
 
         // Find the delimiter position.
@@ -42,7 +50,7 @@ var utils = new function() {
 
         // Validate the length.
         if (len < 0 || len > data.length) {
-            return false
+            return false;
         }
 
         // Now split the first value from the second.
@@ -53,12 +61,15 @@ var utils = new function() {
         return {
             first:  firstV,
             second: secondV
-        }
+        };
     };
 
     // marshalValues joins two values into a single string.
     // They can be decoded by the unmarshalValues function.
-    this.marshalValues = function(first, second) {
+    instance.marshalValues = function(first, second) {
         return String(first.length) + Delimiter + first + second;
     };
-};
+
+
+    return instance;
+})();
