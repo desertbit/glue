@@ -30,6 +30,11 @@ var newAjaxSocket = function () {
         sendTimeout = 8000,
         pollTimeout = 45000;
 
+    var PollCommands = {
+        Timeout:    "t",
+        Closed:     "c"
+    };
+
     var Commands = {
         Delimiter:  "&",
         Init:       "i",
@@ -67,6 +72,14 @@ var newAjaxSocket = function () {
         if (sendXhr) {
             sendXhr.abort();
         }
+    };
+
+    var triggerClosed = function() {
+        // Stop the ajax requests.
+        stopRequests();
+
+        // Trigger the event.
+        s.onClose();
     };
 
     var triggerError = function(msg) {
@@ -112,6 +125,20 @@ var newAjaxSocket = function () {
             success: function (data) {
                 pollXhr = false;
 
+                // Check if this jax request has reached the server's timeout.
+                if (data == PollCommands.Timeout) {
+                    // Just start the next poll request.
+                    poll();
+                    return;
+                }
+
+                // Check if this ajax connection was closed.
+                if (data == PollCommands.Closed) {
+                    // Trigger the closed event.
+                    triggerClosed();
+                    return;
+                }
+
                 // Split the new token from the rest of the data.
                 var i = data.indexOf(Commands.Delimiter);
                 if (i < 0) {
@@ -123,10 +150,10 @@ var newAjaxSocket = function () {
                 pollToken = data.substring(0, i);
                 data = data.substr(i + 1);
 
-                // Start the next poll request
+                // Start the next poll request.
                 poll();
 
-                // Call the event
+                // Call the event.
                 s.onMessage(data);
             },
             error: function (r, msg) {

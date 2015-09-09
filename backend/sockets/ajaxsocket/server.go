@@ -41,7 +41,11 @@ const (
 	ajaxUIDLength       = 10
 	ajaxPollTokenLength = 7
 
-	// Ajax protocol commands.
+	// Ajax poll data commands:
+	ajaxPollCmdTimeout = "t"
+	ajaxPollCmdClosed  = "c"
+
+	// Ajax protocol commands:
 	ajaxSocketDataDelimiter = "&"
 	ajaxSocketDataKeyLength = 1
 	ajaxSocketDataKeyInit   = "i"
@@ -322,11 +326,10 @@ func (s *Server) pollAjaxRequest(uid, remoteAddr, userAgent, data string, w http
 		// Send the new poll token and message data to the client.
 		io.WriteString(w, a.pollToken+ajaxSocketDataDelimiter+data)
 	case <-timeout.C:
-		// Do nothing on timeout
-		// Just release this goroutine.
-		return
+		// Tell the client that this ajax connection has reached the timeout.
+		io.WriteString(w, ajaxPollCmdTimeout)
 	case <-a.closer.IsClosedChan:
-		// Just release this goroutine.
-		return
+		// Tell the client that this ajax connection is closed.
+		io.WriteString(w, ajaxPollCmdClosed)
 	}
 }
