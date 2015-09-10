@@ -22,6 +22,14 @@
 
 var utils = (function() {
     /*
+     * Constants
+     */
+
+    var Delimiter = "&";
+
+
+
+    /*
      * Variables
      */
 
