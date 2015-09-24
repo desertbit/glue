@@ -232,6 +232,7 @@ if !ok {
 
 ### Channels
 
+Channels are separate communication channels from the client to the server of a single socket connections.
 Multiple separate communication channels can be created:
 
 Server:
