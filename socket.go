@@ -42,7 +42,7 @@ import (
 const (
 	// Version holds the Glue Socket Protocol Version as string.
 	// This project follows the Semantic Versioning (http://semver.org/).
-	Version = "1.3.1"
+	Version = "1.4.0"
 )
 
 // Private
@@ -90,6 +90,9 @@ var (
 //####################//
 //### Public Types ###//
 //####################//
+
+// ClosedChan is a channel which doesn't block as soon as the socket is closed.
+type ClosedChan <-chan struct{}
 
 // OnCloseFunc is an event function.
 type OnCloseFunc func()
@@ -236,6 +239,12 @@ func (s *Socket) OnClose(f OnCloseFunc) {
 	s.onCloseFunc = f
 }
 
+// ClosedChan returns as channel which is non-blocking (closed)
+// as soon as the socket is closed.
+func (s *Socket) ClosedChan() ClosedChan {
+	return s.isClosedChan
+}
+
 // Write data to the client.
 func (s *Socket) Write(data string) {
 	// Write to the main channel.
@@ -292,6 +301,15 @@ func (s *Socket) write(rawData string) {
 }
 
 func (s *Socket) onClose() {
+	// Remove the socket again from the active sockets map.
+	func() {
+		// Lock the mutex.
+		s.server.socketsMutex.Lock()
+		defer s.server.socketsMutex.Unlock()
+
+		delete(s.server.sockets, s.id)
+	}()
+
 	// Stop all goroutines for this socket by closing the isClosed channel.
 	close(s.isClosedChan)
 
@@ -304,15 +322,6 @@ func (s *Socket) onClose() {
 			break
 		}
 	}
-
-	// Remove the socket again from the active sockets map.
-	func() {
-		// Lock the mutex.
-		s.server.socketsMutex.Lock()
-		defer s.server.socketsMutex.Unlock()
-
-		delete(s.server.sockets, s.id)
-	}()
 
 	// Trigger the on close event if defined.
 	if s.onCloseFunc != nil {

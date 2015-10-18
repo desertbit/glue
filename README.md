@@ -1,28 +1,18 @@
-Glue - Robust Go and Javascript Socket Library
-==============================================
-
+# Glue - Robust Go and Javascript Socket Library
 [![Join the chat at https://gitter.im/desertbit/glue](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/desertbit/glue?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Glue is a real-time bidirectional socket library. It is a **clean**, **robust** and **efficient** alternative to [socket.io](http://socket.io/). This library is designed to connect webbrowsers with a go-backend in a simple way. It automatically detects supported socket layers and chooses the most suitable one. This library handles automatic reconnections on disconnections and handles caching to bridge those disconnections. The server implementation is **thread-safe**.
 
-Socket layers
--------------
-
+## Socket layers
 Currently two socket layers are supported:
+- **WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined by [RFC 6455](https://tools.ietf.org/html/rfc6455).
+- **AjaxSockets** - This socket layer is used as a fallback mode.
 
--	**WebSockets** - This is the primary option. They are used if the webbrowser supports WebSockets defined by [RFC 6455](https://tools.ietf.org/html/rfc6455).
--	**AjaxSockets** - This socket layer is used as a fallback mode.
-
-Support
--------
-
+## Support
 Feel free to contribute to this project. Please check the [TODO](TODO.md) file for more information.
 
-Install
--------
-
+## Install
 ### Client
-
 The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**. It requires jQuery.
 
 You can use bower to install the client library:
@@ -30,7 +20,6 @@ You can use bower to install the client library:
 `bower install --save glue-socket`
 
 ### Server
-
 Get the source and start hacking.
 
 `go get github.com/desertbit/glue`
@@ -41,11 +30,8 @@ Import it with:
 import "github.com/desertbit/glue"
 ```
 
-Documentation
--------------
-
+## Documentation
 ### Client - Javascript Library
-
 A simple call to glue() without any options will establish a socket connection to the same host. A glue socket object is returned.
 
 ```js
@@ -166,17 +152,15 @@ c.send(data, discardCallback);
 ```
 
 ### Server - Go Library
-
 Check the Documentation at [GoDoc.org](https://godoc.org/github.com/desertbit/glue).
 
 #### Use a custom HTTP multiplexer
-
 If you choose to use a custom HTTP multiplexer, then it is possible to deactivate the automatic HTTP handler registration of glue.
 
 ```go
 // Create a new glue server without configuring and starting the HTTP server.
 server := glue.NewServer(glue.Options{
-	HTTPSocketType: HTTPSocketTypeNone,
+    HTTPSocketType: HTTPSocketTypeNone,
 })
 
 //...
@@ -185,7 +169,6 @@ server := glue.NewServer(glue.Options{
 The glue server implements the ServeHTTP method of the HTTP Handler interface of the http package. Use this to register the glue HTTP handler with a custom multiplexer. Be aware, that the URL of the custom HTTP handler has to match with the glue HTTPHandleURL options string.
 
 #### Reading data
-
 Data has to be read from the socket and each channel. If you don't require to read data from the socket or a channel, then discard received data with the DiscardRead() method. If received data is not discarded, then the read buffer will block as soon as it is full, which will also block the keep-alive mechanism of the socket. The result would be a closed socket...
 
 ```go
@@ -205,35 +188,32 @@ c.DiscardRead()
 ```
 
 #### Bind custom values to a socket
-
 The socket.Value interface is a placeholder for custom data.
 
 ```go
 type CustomValues struct {
-	Foo string
-	Bar int
+    Foo string
+    Bar int
 }
 
 // ...
 
 s.Value = &CustomValues{
-	Foo: "Hello World",
-	Bar: 900,
+    Foo: "Hello World",
+    Bar: 900,
 }
 
 // ...
 
 v, ok := s.Value.(*CustomValues)
 if !ok {
-	// Handle error
-	return
+    // Handle error
+    return
 }
 ```
 
 ### Channels
-
-Channels are separate communication channels from the client to the server of a single socket connections.
-Multiple separate communication channels can be created:
+Channels are separate communication channels from the client to the server of a single socket connections. Multiple separate communication channels can be created:
 
 Server:
 
@@ -245,7 +225,7 @@ c := s.Channel("golang")
 
 // Set the channel on read event function.
 c.OnRead(func(data string) {
-	// ...
+    // ...
 })
 
 // Write to the channel.
@@ -258,24 +238,22 @@ Client:
 var c = socket.channel("golang");
 
 c.onMessage(function(data) {
-	console.log(data);
+    console.log(data);
 });
 
 c.send("Hello World");
 ```
 
-Example
--------
-
+## Example
 This socket library is very straightforward to use. Check the [sample directory](sample) for more examples.
 
 ### Client
 
 ```html
 <script>
-	// Create and connect to the server.
-	// Optional pass a host string and options.
-	var socket = glue();
+    // Create and connect to the server.
+    // Optional pass a host string and options.
+    var socket = glue();
 
     socket.onMessage(function(data) {
         console.log("onMessage: " + data);
@@ -320,56 +298,53 @@ This socket library is very straightforward to use. Check the [sample directory]
 ```
 
 ### Server
-
 Read data from the socket with a read event function. Check the sample directory for other ways of reading data from the socket.
 
 ```go
 import (
-	"log"
-	"net/http"
+    "log"
+    "net/http"
 
-	"github.com/desertbit/glue"
+    "github.com/desertbit/glue"
 )
 
 func main() {
-	// Create a new glue server.
-	server := glue.NewServer(glue.Options{
-		HTTPListenAddress: ":8080",
-	})
+    // Create a new glue server.
+    server := glue.NewServer(glue.Options{
+        HTTPListenAddress: ":8080",
+    })
 
-	// Release the glue server on defer.
-	// This will block new incoming connections
-	// and close all current active sockets.
-	defer server.Release()
+    // Release the glue server on defer.
+    // This will block new incoming connections
+    // and close all current active sockets.
+    defer server.Release()
 
-	// Set the glue event function to handle new incoming socket connections.
-	server.OnNewSocket(onNewSocket)
+    // Set the glue event function to handle new incoming socket connections.
+    server.OnNewSocket(onNewSocket)
 
-	// Run the glue server.
-	err := server.Run()
-	if err != nil {
-		log.Fatalf("Glue Run: %v", err)
-	}
+    // Run the glue server.
+    err := server.Run()
+    if err != nil {
+        log.Fatalf("Glue Run: %v", err)
+    }
 }
 
 func onNewSocket(s *glue.Socket) {
-	// Set a function which is triggered as soon as the socket is closed.
-	s.OnClose(func() {
-		log.Printf("socket closed with remote address: %s", s.RemoteAddr())
-	})
+    // Set a function which is triggered as soon as the socket is closed.
+    s.OnClose(func() {
+        log.Printf("socket closed with remote address: %s", s.RemoteAddr())
+    })
 
-	// Set a function which is triggered during each received message.
-	s.OnRead(func(data string) {
-		// Echo the received data back to the client.
-		s.Write(data)
-	})
+    // Set a function which is triggered during each received message.
+    s.OnRead(func(data string) {
+        // Echo the received data back to the client.
+        s.Write(data)
+    })
 
-	// Send a welcome string to the client.
-	s.Write("Hello Client")
+    // Send a welcome string to the client.
+    s.Write("Hello Client")
 }
 ```
 
-Similar Go Projects
--------------------
-
--	[go-socket.io](https://github.com/googollee/go-socket.io) - socket.io library for golang, a realtime application framework.
+## Similar Go Projects
+- [go-socket.io](https://github.com/googollee/go-socket.io) - socket.io library for golang, a realtime application framework.

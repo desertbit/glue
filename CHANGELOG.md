@@ -1,66 +1,52 @@
-Change Log
-==========
+# Change Log
+All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
-All notable changes to this project will be documented in this file.
-This project follows the [Semantic Versioning](http://semver.org/).
+## 1.4.0 - 2015-10-18
+- Implemented socket ClosedChan method.
+- Reformatted README.
 
-1.3.1 - 2015-09-09
-------------------
+## 1.3.1 - 2015-09-09
+- Javascript client: code cleanup and small fixes (JSHint).
+- Updated Version
+- Added semantic version check with backward compatibility check.
+- Implemented ajax poll timeout and close handling.
+- Suppress unnecessary websocket close error message.
 
--   Javascript client: code cleanup and small fixes (JSHint).
--   Updated Version
--   Added semantic version check with backward compatibility check.
--   Implemented ajax poll timeout and close handling.
--   Suppress unnecessary websocket close error message.
+## 1.3.0 - 2015-09-02
+- Restructured backend sockets.
+- Moved glue methods into a server struct.
+- New socket ID generation.
+- Added support to set custom HTTP base URLs.
+- Added server options.
+- HTTP server is now started by the glue server.
+- Added support for custom HTTP multiplexers.
 
-1.3.0 - 2015-09-02
-------------------
-
--	Restructured backend sockets.
--	Moved glue methods into a server struct.
--	New socket ID generation.
--	Added support to set custom HTTP base URLs.
--	Added server options.
--	HTTP server is now started by the glue server.
--	Added support for custom HTTP multiplexers.
-
-1.2.0 - 2015-08-11
-------------------
-
--	Several small fixes and improvements.
+## 1.2.0 - 2015-08-11
+- Several small fixes and improvements.
 
 ### Added
-
--	Added channel support to communicate in different channels.
--	Sockets are added to a map of active sockets.
--	A list of active sockets can be retrieved with glue.Sockets().
--	Added unique ID for each socket.
--	Added Release function to block new incoming connections and to close all current connected sockets.
--	Added socket.Value interface to store custom data.
--	Added glue socket protocol versions check during socket connection initialization.
+- Added channel support to communicate in different channels.
+- Sockets are added to a map of active sockets.
+- A list of active sockets can be retrieved with glue.Sockets().
+- Added unique ID for each socket.
+- Added Release function to block new incoming connections and to close all current connected sockets.
+- Added socket.Value interface to store custom data.
+- Added glue socket protocol versions check during socket connection initialization.
 
 ### Removed
+- Removed discard_send_buffers from the frontend library. Use the discard callback in the send function instead.
 
--	Removed discard_send_buffers from the frontend library. Use the discard callback in the send function instead.
-
-1.1.1 - 2015-07-21
-------------------
-
+## 1.1.1 - 2015-07-21
 ### Added
+- Added socket OnRead event. Either use Read or OnRead.
+- Added internal read handler with locking...
+- Updated README.
 
--	Added socket OnRead event. Either use Read or OnRead.
--	Added internal read handler with locking...
--	Updated README.
-
-1.1.0 - 2015-07-15
-------------------
-
+## 1.1.0 - 2015-07-15
 ### Added
-
--	Updated TODO.
--	Added Changelog.
--	Added blocking socket Read method.
+- Updated TODO.
+- Added Changelog.
+- Added blocking socket Read method.
 
 ### Removed
-
--	Removed socket OnRead event.
+- Removed socket OnRead event.
