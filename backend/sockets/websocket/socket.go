@@ -20,7 +20,6 @@ package websocket
 
 import (
 	"io"
-	"strings"
 	"time"
 
 	"github.com/desertbit/glue/backend/closer"
@@ -159,15 +158,21 @@ func (w *Socket) readLoop() {
 		// Read from the websocket.
 		_, data, err := w.ws.ReadMessage()
 		if err != nil {
+			// Websocket close code.
+			wsCode := -1 // -1 for not set.
+
+			// Try to obtain the websocket close code if present.
+			// Assert to gorilla websocket CloseError type if possible.
+			if closeErr, ok := err.(*websocket.CloseError); ok {
+				wsCode = closeErr.Code
+			}
+
 			// Only log errors if this is not EOF and
 			// if the socket was not closed already.
-			// The gorilla socket returns the following string if the socket is
-			// closed and the read message request fails: "websocket: close 1001 "
-			// Currently there is no better solution to determind this, by comparing
-			// the error string message.
-			// TODO: Provide a patch to the gorilla websocket package to solve this dirty hack.
+			// Also check the websocket close code.
 			if err != io.EOF && !w.IsClosed() &&
-				strings.TrimSpace(err.Error()) != "websocket: close 1001" {
+				wsCode != websocket.CloseNormalClosure &&
+				wsCode != websocket.CloseGoingAway {
 				// Log
 				log.L.WithFields(logrus.Fields{
 					"remoteAddress": w.RemoteAddr(),

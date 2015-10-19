@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
+## 1.4.1 - 2015-10-19
+- websocket: removed dirty hack to fix unnecessary log messages and fixed this with the websocket close code.
+
 ## 1.4.0 - 2015-10-18
 - Implemented socket ClosedChan method.
 - Reformatted README.
