@@ -86,9 +86,7 @@ func (c *Channel) Read(timeout ...time.Duration) (string, error) {
 		})
 
 		// Always stop the timer on defer.
-		defer func() {
-			timer.Stop()
-		}()
+		defer timer.Stop()
 	}
 
 	select {
