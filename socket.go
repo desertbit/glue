@@ -239,7 +239,7 @@ func (s *Socket) OnClose(f OnCloseFunc) {
 	s.onCloseFunc = f
 }
 
-// ClosedChan returns as channel which is non-blocking (closed)
+// ClosedChan returns a channel which is non-blocking (closed)
 // as soon as the socket is closed.
 func (s *Socket) ClosedChan() ClosedChan {
 	return s.isClosedChan
