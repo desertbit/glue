@@ -97,6 +97,22 @@ func (s *Server) OnNewSocket(f OnNewSocketFunc) {
 	s.onNewSocket = f
 }
 
+// GetSocket obtains a socket by its ID.
+// Returns nil if not found.
+func (s *Server) GetSocket(id string) *Socket {
+	// Lock the mutex.
+	s.socketsMutex.Lock()
+	defer s.socketsMutex.Unlock()
+
+	// Obtain the socket.
+	socket, ok := s.sockets[id]
+	if !ok {
+		return nil
+	}
+
+	return socket
+}
+
 // Sockets returns a list of all current connected sockets.
 // Hint: Sockets are added to the active sockets list before the OnNewSocket
 // event function is called.
