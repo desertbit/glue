@@ -105,7 +105,7 @@ var glue = function(host, options) {
         resetSendBufferTimedOut = false,
         isReady                 = false,    // If true, the socket is initialized and ready.
         beforeReadySendBuffer   = [],       // Buffer to hold requests for the server while the socket is not ready yet.
-        sessionID               = "";
+        socketID               = "";
 
 
     /*
@@ -384,14 +384,14 @@ var glue = function(host, options) {
 
         // Validate.
         // Close the socket and log the error on invalid data.
-        if (!data.sessionID) {
+        if (!data.socketID) {
             closeSocket();
             console.log("glue: socket initialization failed: invalid initialization data received");
             return;
         }
 
-        // Set the session ID.
-        sessionID = data.sessionID;
+        // Set the socket ID.
+        socketID = data.socketID;
 
         // The socket initialization is done.
         // ##################################
@@ -539,7 +539,7 @@ var glue = function(host, options) {
 
         // Reset flags and variables.
         isReady = false;
-        sessionID = "";
+        socketID = "";
 
         // Clear the buffer.
         // This buffer is attached to each single socket.
@@ -674,10 +674,10 @@ var glue = function(host, options) {
             return currentState;
         },
 
-        // sessionID returns the socket session ID.
+        // socketID returns the socket's ID.
         // This is a cryptographically secure pseudorandom number.
-        sessionID: function() {
-            return sessionID;
+        socketID: function() {
+            return socketID;
         },
 
         // send a data string to the server.

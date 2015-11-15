@@ -105,7 +105,7 @@ type OnReadFunc func(data string)
 //#####################//
 
 type initData struct {
-	SessionID string `json:"sessionID"`
+	SocketID string `json:"socketID"`
 }
 
 type clientInitData struct {
@@ -535,7 +535,7 @@ func initSocket(s *Socket, dataJSON string) {
 
 		// Create the new initialization data value.
 		data := initData{
-			SessionID: s.ID(),
+			SocketID: s.ID(),
 		}
 
 		// Marshal the data to a JSON string.
