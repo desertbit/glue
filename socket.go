@@ -42,7 +42,7 @@ import (
 const (
 	// Version holds the Glue Socket Protocol Version as string.
 	// This project follows the Semantic Versioning (http://semver.org/).
-	Version = "1.4.0"
+	Version = "1.6.0"
 )
 
 // Private
@@ -105,8 +105,7 @@ type OnReadFunc func(data string)
 //#####################//
 
 type initData struct {
-	// Hint: Currently not used.
-	// Placeholder for encryption.
+	SessionID string `json:"sessionID"`
 }
 
 type clientInitData struct {
@@ -202,7 +201,7 @@ func newSocket(server *Server, bs backend.BackendSocket) *Socket {
 }
 
 // ID returns the socket's unique ID.
-// This ID is a totally random.
+// This is a cryptographically secure pseudorandom number.
 func (s *Socket) ID() string {
 	return s.id
 }
@@ -535,7 +534,9 @@ func initSocket(s *Socket, dataJSON string) {
 		// #########################
 
 		// Create the new initialization data value.
-		data := initData{}
+		data := initData{
+			SessionID: s.ID(),
+		}
 
 		// Marshal the data to a JSON string.
 		dataJSON, err := json.Marshal(&data)

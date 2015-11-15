@@ -95,6 +95,10 @@ socket.type();
 //  - "connected"
 socket.state();
 
+// sessionID returns the socket session ID.
+// This is a cryptographically secure pseudorandom number.
+socket.sessionID();
+
 // send a data string to the server.
 // One optional discard callback can be passed.
 // It is called if the data could not be send to the server.

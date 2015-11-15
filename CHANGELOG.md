@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
+## 1.6.0 - 2015-11-15
+- Added method to obtain the session ID on the client-side.
+- Websocket: don't log messages if the 1005 close code is received (CloseNoStatusReceived).
+
 ## 1.5.0 - 2015-11-04
 - Added GetSocket method to server.
 - Some minor improvements.

@@ -30,7 +30,7 @@ var glue = function(host, options) {
      * Constants
      */
 
-    var Version         = "1.3.1",
+    var Version         = "1.6.0",
         MainChannelName = "m";
 
     var SocketTypes = {
@@ -104,8 +104,8 @@ var glue = function(host, options) {
         resetSendBufferTimeout  = false,
         resetSendBufferTimedOut = false,
         isReady                 = false,    // If true, the socket is initialized and ready.
-        beforeReadySendBuffer   = [];       // Buffer to hold requests for the server while the socket is not ready yet.
-
+        beforeReadySendBuffer   = [],       // Buffer to hold requests for the server while the socket is not ready yet.
+        sessionID               = "";
 
 
     /*
@@ -382,13 +382,16 @@ var glue = function(host, options) {
         // Parse the data JSON string to an object.
         data = JSON.parse(data);
 
-        // Hint: Placeholder for encryption.
-        // Otherwise close the socket and log the error.
-        /*if (d...) {
+        // Validate.
+        // Close the socket and log the error on invalid data.
+        if (!data.sessionID) {
             closeSocket();
-            console.log("glue: ...");
+            console.log("glue: socket initialization failed: invalid initialization data received");
             return;
-        }*/
+        }
+
+        // Set the session ID.
+        sessionID = data.sessionID;
 
         // The socket initialization is done.
         // ##################################
@@ -534,8 +537,9 @@ var glue = function(host, options) {
         stopConnectTimeout();
         stopPingTimeout();
 
-        // Reset flags
+        // Reset flags and variables.
         isReady = false;
+        sessionID = "";
 
         // Clear the buffer.
         // This buffer is attached to each single socket.
@@ -668,6 +672,12 @@ var glue = function(host, options) {
         //  - "connected"
         state: function() {
             return currentState;
+        },
+
+        // sessionID returns the socket session ID.
+        // This is a cryptographically secure pseudorandom number.
+        sessionID: function() {
+            return sessionID;
         },
 
         // send a data string to the server.
