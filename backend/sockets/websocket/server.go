@@ -43,6 +43,8 @@ func NewServer(onNewSocketConnectionFunc func(*Socket)) *Server {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
+			// Don't check the origin. This is done by the backend server package.
+			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 
 		onNewSocketConnection: onNewSocketConnectionFunc,

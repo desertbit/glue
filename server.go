@@ -68,7 +68,7 @@ func NewServer(o ...Options) *Server {
 	options.SetDefaults()
 
 	// Create a new backend server.
-	bs := backend.NewServer(len(options.HTTPHandleURL))
+	bs := backend.NewServer(len(options.HTTPHandleURL), options.CheckOrigin)
 
 	// Create a new server value.
 	s := &Server{

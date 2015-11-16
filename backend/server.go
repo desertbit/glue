@@ -50,12 +50,15 @@ type Server struct {
 	// from the ServerHTTP URL path.
 	httpURLStripLength int
 
+	// checkOriginFunc returns true if the request Origin header is acceptable.
+	checkOriginFunc func(r *http.Request) bool
+
 	// Socket Servers
 	webSocketServer  *websocket.Server
 	ajaxSocketServer *ajaxsocket.Server
 }
 
-func NewServer(httpURLStripLength int) *Server {
+func NewServer(httpURLStripLength int, checkOrigin func(r *http.Request) bool) *Server {
 	// Create a new backend server.
 	s := &Server{
 		// Set a dummy function.
@@ -64,6 +67,7 @@ func NewServer(httpURLStripLength int) *Server {
 		onNewSocketConnection: func(BackendSocket) {},
 
 		httpURLStripLength: httpURLStripLength,
+		checkOriginFunc:    checkOrigin,
 	}
 
 	// Create the websocket server and pass the function which handles new incoming socket connections.
@@ -91,10 +95,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	// Call this in an inline function to handle errors.
-	err := func() error {
+	statusCode, err := func() (int, error) {
+		// Check the origin.
+		if !s.checkOriginFunc(r) {
+			return http.StatusForbidden, fmt.Errorf("origin not allowed")
+		}
+
 		// Strip the base URL.
 		if len(path) < s.httpURLStripLength {
-			return fmt.Errorf("invalid request")
+			return http.StatusBadRequest, fmt.Errorf("invalid request")
 		}
 		path = path[s.httpURLStripLength:]
 
@@ -106,14 +115,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Handle the ajax request.
 			s.ajaxSocketServer.HandleRequest(w, r)
 		} else {
-			return fmt.Errorf("invalid request")
+			return http.StatusBadRequest, fmt.Errorf("invalid request")
 		}
 
-		return nil
+		return http.StatusAccepted, nil
 	}()
 
 	// Handle the error.
 	if err != nil {
+		// Set the HTTP status code.
+		w.WriteHeader(statusCode)
+
 		// Get the remote address and user agent.
 		remoteAddr, _ := utils.RemoteAddress(r)
 		userAgent := r.Header.Get("User-Agent")
@@ -124,8 +136,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"userAgent":     userAgent,
 			"url":           r.URL.Path,
 		}).Warningf("handle HTTP request: %v", err)
-
-		http.Error(w, "Bad Request", 400)
 	}
 }
 

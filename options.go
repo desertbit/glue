@@ -18,7 +18,11 @@
 
 package glue
 
-import "strings"
+import (
+	"net/http"
+	"net/url"
+	"strings"
+)
 
 //#################//
 //### Constants ###//
@@ -56,6 +60,12 @@ type Options struct {
 	// This has to be set, even if the none socket type is used.
 	// Default: "/glue/"
 	HTTPHandleURL string
+
+	// CheckOrigin returns true if the request Origin header is acceptable. If
+	// CheckOrigin is nil, the host in the Origin header must not be set or
+	// must match the host of the request.
+	// This method is used by the backend sockets before establishing connections.
+	CheckOrigin func(r *http.Request) bool
 }
 
 // SetDefaults sets unset option values to its default value.
@@ -81,4 +91,27 @@ func (o *Options) SetDefaults() {
 	if !strings.HasSuffix(o.HTTPHandleURL, "/") {
 		o.HTTPHandleURL += "/"
 	}
+
+	// Set the default check origin function if not set.
+	if o.CheckOrigin == nil {
+		o.CheckOrigin = checkSameOrigin
+	}
+}
+
+//###############//
+//### Private ###//
+//###############//
+
+// checkSameOrigin returns true if the origin is not set or is equal to the request host.
+// Source from gorilla websockets.
+func checkSameOrigin(r *http.Request) bool {
+	origin := r.Header["Origin"]
+	if len(origin) == 0 {
+		return true
+	}
+	u, err := url.Parse(origin[0])
+	if err != nil {
+		return false
+	}
+	return u.Host == r.Host
 }
