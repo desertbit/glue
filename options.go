@@ -66,6 +66,12 @@ type Options struct {
 	// must match the host of the request.
 	// This method is used by the backend sockets before establishing connections.
 	CheckOrigin func(r *http.Request) bool
+
+	// Enables the Cross-Origin Resource Sharing (CORS) mechanism.
+	// This will set the Access-Control-Allow-Origin HTTP headers.
+	// A resource makes a cross-origin HTTP request when it requests a resource
+	// from a different domain than the one which served itself.
+	EnableCORS bool
 }
 
 // SetDefaults sets unset option values to its default value.

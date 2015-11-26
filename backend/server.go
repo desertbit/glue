@@ -53,12 +53,15 @@ type Server struct {
 	// checkOriginFunc returns true if the request Origin header is acceptable.
 	checkOriginFunc func(r *http.Request) bool
 
+	// Enables the Cross-Origin Resource Sharing (CORS) mechanism.
+	enableCORS bool
+
 	// Socket Servers
 	webSocketServer  *websocket.Server
 	ajaxSocketServer *ajaxsocket.Server
 }
 
-func NewServer(httpURLStripLength int, checkOrigin func(r *http.Request) bool) *Server {
+func NewServer(httpURLStripLength int, enableCORS bool, checkOrigin func(r *http.Request) bool) *Server {
 	// Create a new backend server.
 	s := &Server{
 		// Set a dummy function.
@@ -67,6 +70,7 @@ func NewServer(httpURLStripLength int, checkOrigin func(r *http.Request) bool) *
 		onNewSocketConnection: func(BackendSocket) {},
 
 		httpURLStripLength: httpURLStripLength,
+		enableCORS:         enableCORS,
 		checkOriginFunc:    checkOrigin,
 	}
 
@@ -99,6 +103,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Check the origin.
 		if !s.checkOriginFunc(r) {
 			return http.StatusForbidden, fmt.Errorf("origin not allowed")
+		}
+
+		// Set the required HTTP headers for cross origin requests if enabled.
+		if s.enableCORS {
+			// Parse the origin url.
+			origin := r.Header["Origin"]
+			if len(origin) == 0 || len(origin[0]) == 0 {
+				return 400, fmt.Errorf("failed to set header: Access-Control-Allow-Origin: HTTP request origin header is empty")
+			}
+
+			w.Header().Set("Access-Control-Allow-Origin", origin[0])   // Set allowed origin.
+			w.Header().Set("Access-Control-Allow-Methods", "POST,GET") // Only allow POST and GET requests.
 		}
 
 		// Strip the base URL.
