@@ -42,7 +42,7 @@ import (
 const (
 	// Version holds the Glue Socket Protocol Version as string.
 	// This project follows the Semantic Versioning (http://semver.org/).
-	Version = "1.7.0"
+	Version = "1.8.0"
 )
 
 // Private
