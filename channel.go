@@ -117,7 +117,8 @@ func (c *Channel) OnRead(f OnReadFunc) {
 		for {
 			select {
 			case data := <-c.readChan:
-				func() {
+				// Call the callback in a new goroutine.
+				go func() {
 					// Recover panics and log the error.
 					defer func() {
 						if e := recover(); e != nil {

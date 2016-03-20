@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
+## 1.8.1 - 2016-03-20
+- OnRead callbacks are now called in a new goroutine.
+
 ## 1.8.0 - 2015-11-26
 - Added support for the Cross-Origin Resource Sharing (CORS) mechanism. Added new option EnableCORS.
 

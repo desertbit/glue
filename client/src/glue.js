@@ -30,7 +30,7 @@ var glue = function(host, options) {
      * Constants
      */
 
-    var Version         = "1.8.0",
+    var Version         = "1.8.1",
         MainChannelName = "m";
 
     var SocketTypes = {
