@@ -20,6 +20,7 @@ package websocket
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	"github.com/desertbit/glue/backend/closer"
@@ -50,7 +51,8 @@ const (
 //######################//
 
 type Socket struct {
-	ws *websocket.Conn
+	ws         *websocket.Conn
+	writeMutex sync.Mutex
 
 	closer  *closer.Closer
 	onClose func()
@@ -128,12 +130,6 @@ func (w *Socket) ReadChan() chan string {
 //### WebSocket - Private ###//
 //###########################//
 
-// write writes a message with the given message type and payload.
-func (w *Socket) write(mt int, payload []byte) error {
-	w.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	return w.ws.WriteMessage(mt, payload)
-}
-
 // readLoop reads messages from the websocket
 func (w *Socket) readLoop() {
 	defer func() {
@@ -189,6 +185,16 @@ func (w *Socket) readLoop() {
 		// Write the received data to the read channel.
 		w.readChan <- string(data)
 	}
+}
+
+// write writes a message with the given message type and payload.
+// This method is thread-safe.
+func (w *Socket) write(mt int, payload []byte) error {
+	w.writeMutex.Lock()
+	defer w.writeMutex.Unlock()
+
+	w.ws.SetWriteDeadline(time.Now().Add(writeWait))
+	return w.ws.WriteMessage(mt, payload)
 }
 
 func (w *Socket) writeLoop() {
