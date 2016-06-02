@@ -74,6 +74,29 @@ var newAjaxSocket = function () {
         }
     };
 
+    var postAjax = function(url, timeout, data, success, error) {
+        var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+
+        xhr.onload = function() {
+          success(xhr.response);
+        };
+
+        xhr.onerror = function() {
+          error();
+        };
+
+        xhr.ontimeout = function() {
+          error("timeout");
+        };
+
+        xhr.open('POST', url, true);
+        xhr.responseType = "text";
+        xhr.timeout = timeout;
+        xhr.send(data);
+
+        return xhr;
+    };
+
     var triggerClosed = function() {
         // Stop the ajax requests.
         stopRequests();
@@ -99,71 +122,57 @@ var newAjaxSocket = function () {
     };
 
     var send = function (data, callback) {
-        sendXhr = $.ajax({
-            url: ajaxHost,
-            success: function (data) {
-                sendXhr = false;
+        sendXhr = postAjax(ajaxHost, sendTimeout, data, function (data) {
+            sendXhr = false;
 
-                if (callback) {
-                    callback(data);
-                }
-            },
-            error: function (r, msg) {
-                sendXhr = false;
-                triggerError(msg);
-            },
-            type: "POST",
-            data: data,
-            dataType: "text",
-            timeout: sendTimeout
+            if (callback) {
+                callback(data);
+            }
+        }, function (msg) {
+            sendXhr = false;
+            triggerError(msg);
         });
     };
 
     poll = function () {
-        pollXhr = $.ajax({
-            url: ajaxHost,
-            success: function (data) {
-                pollXhr = false;
+        var data = Commands.Poll + uid + Commands.Delimiter + pollToken;
 
-                // Check if this jax request has reached the server's timeout.
-                if (data == PollCommands.Timeout) {
-                    // Just start the next poll request.
-                    poll();
-                    return;
-                }
+        pollXhr = postAjax(ajaxHost, pollTimeout, data, function (data) {
+          pollXhr = false;
 
-                // Check if this ajax connection was closed.
-                if (data == PollCommands.Closed) {
-                    // Trigger the closed event.
-                    triggerClosed();
-                    return;
-                }
+          // Check if this jax request has reached the server's timeout.
+          if (data == PollCommands.Timeout) {
+              // Just start the next poll request.
+              poll();
+              return;
+          }
 
-                // Split the new token from the rest of the data.
-                var i = data.indexOf(Commands.Delimiter);
-                if (i < 0) {
-                    triggerError("ajax socket: failed to split poll token from data!");
-                    return;
-                }
+          // Check if this ajax connection was closed.
+          if (data == PollCommands.Closed) {
+              // Trigger the closed event.
+              triggerClosed();
+              return;
+          }
 
-                // Set the new token and the data variable.
-                pollToken = data.substring(0, i);
-                data = data.substr(i + 1);
+          // Split the new token from the rest of the data.
+          var i = data.indexOf(Commands.Delimiter);
+          if (i < 0) {
+              triggerError("ajax socket: failed to split poll token from data!");
+              return;
+          }
 
-                // Start the next poll request.
-                poll();
+          // Set the new token and the data variable.
+          pollToken = data.substring(0, i);
+          data = data.substr(i + 1);
 
-                // Call the event.
-                s.onMessage(data);
-            },
-            error: function (r, msg) {
-                pollXhr = false;
-                triggerError(msg);
-            },
-            type: "POST",
-            data: Commands.Poll + uid + Commands.Delimiter + pollToken,
-            dataType: "text",
-            timeout: pollTimeout
+          // Start the next poll request.
+          poll();
+
+          // Call the event.
+          s.onMessage(data);
+        }, function (msg) {
+            pollXhr = false;
+            triggerError(msg);
         });
     };
 

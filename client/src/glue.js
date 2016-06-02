@@ -20,7 +20,8 @@ var glue = function(host, options) {
     // Turn on strict mode.
     'use strict';
 
-    // Include the sockets layer implementations.
+    // Include the dependencies.
+    @@include('./emitter.js')
     @@include('./websocket.js')
     @@include('./ajaxsocket.js')
 
@@ -30,7 +31,7 @@ var glue = function(host, options) {
      * Constants
      */
 
-    var Version         = "1.8.2",
+    var Version         = "1.9.0",
         MainChannelName = "m";
 
     var SocketTypes = {
@@ -89,7 +90,8 @@ var glue = function(host, options) {
      * Variables
      */
 
-    var bs                      = false,
+    var emitter                 = new Emitter,
+        bs                      = false,
         mainChannel,
         initialConnectedOnce    = false,    // If at least one successful connection was made.
         bsNewFunc,                          // Function to create a new backend socket.
@@ -192,7 +194,7 @@ var glue = function(host, options) {
             var buf;
             for (var i = 0; i < sendBuffer.length; i++) {
                 buf = sendBuffer[i];
-                if (buf.discardCallback && $.isFunction(buf.discardCallback)) {
+                if (buf.discardCallback && utils.isFunction(buf.discardCallback)) {
                     try {
                         buf.discardCallback(buf.data);
                     }
@@ -252,7 +254,7 @@ var glue = function(host, options) {
         if (!bs || currentState !== States.Connected) {
             // If already timed out, then call the discard callback and return.
             if (resetSendBufferTimedOut) {
-                if (discardCallback && $.isFunction(discardCallback)) {
+                if (discardCallback && utils.isFunction(discardCallback)) {
                     discardCallback(data);
                 }
 
@@ -627,7 +629,7 @@ var glue = function(host, options) {
     }
 
     // Merge the options with the default options.
-    options = $.extend(DefaultOptions, options);
+    options = utils.extend({}, DefaultOptions, options);
 
     // The max value can't be smaller than the delay.
     if (options.reconnectDelayMax < options.reconnectDelay) {
@@ -698,7 +700,7 @@ var glue = function(host, options) {
         },
 
         // on binds event functions to events.
-        // This function is equivalent to jQuery's on method.
+        // This function is equivalent to jQuery's on method syntax.
         // Following events are available:
         //  - "connected"
         //  - "connecting"
@@ -709,8 +711,7 @@ var glue = function(host, options) {
         //  - "timeout"
         //  - "discard_send_buffer"
         on: function() {
-            var s = $(socket);
-            s.on.apply(s, arguments);
+            emitter.on.apply(emitter, arguments);
         },
 
         // Reconnect to the server.
@@ -743,8 +744,7 @@ var glue = function(host, options) {
 
     // Define the function body of the triggerEvent function.
     triggerEvent = function() {
-        var s = $(socket);
-        s.triggerHandler.apply(s, arguments);
+        emitter.emit.apply(emitter, arguments);
     };
 
     // Return the newly created socket.

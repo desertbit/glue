@@ -3,8 +3,7 @@
 <head>
 	<meta charset="utf8" />
 	<title>Glue Socket Test</title>
-	<script src="/jquery.min.js"></script>
-    <script src="/dist/glue.js"></script>
+  <script src="/dist/glue.js"></script>
 </head>
 <body>
 	<h1>Glue Socket Test</h1>
@@ -48,7 +47,7 @@
         });
 
         socket.on("discard_send_buffer", function() {
-			console.log("some data could not be send and was discarded.");
+						console.log("some data could not be send and was discarded.");
         });
 
 
@@ -56,7 +55,8 @@
 
         var count = 0;
 
-        $("#b1").click(function() {
+				var b1 = document.getElementById("b1");
+				b1.addEventListener("click", function() {
             var data = (++count) + ": Hello World!";
             console.log("client send message: " + data);
             socket.send(data);

@@ -3,8 +3,7 @@
 <head>
 	<meta charset="utf8" />
 	<title>Glue Socket Test</title>
-	<script src="/jquery.min.js"></script>
-    <script src="/dist/glue.js"></script>
+  <script src="/dist/glue.js"></script>
 </head>
 <body>
 	<h1>Glue Socket Test</h1>
@@ -48,7 +47,7 @@
         });
 
         socket.on("discard_send_buffer", function() {
-			console.log("some data could not be send and was discarded.");
+						console.log("some data could not be send and was discarded.");
         });
 
 		// Channel
@@ -56,18 +55,19 @@
 		var c = socket.channel("golang");
 
 		c.onMessage(function(data) {
-            console.log(data);
-        });
+        console.log(data);
+    });
 
 		c.send("Hello World");
 
 
-        var count = 0;
+    var count = 0;
 
-        $("#b1").click(function() {
-            var data = (++count) + ": Hello Gophers!";
-            c.send(data);
-        });
+		var b1 = document.getElementById("b1");
+		b1.addEventListener("click", function() {
+        var data = (++count) + ": Hello Gophers!";
+        c.send(data);
+    });
 	</script>
 </body>
 </html>

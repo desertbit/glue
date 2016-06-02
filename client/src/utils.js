@@ -41,6 +41,22 @@ var utils = (function() {
      * Public Methods
      */
 
+    // Mimics jQuery's extend method.
+    // Source: http://stackoverflow.com/questions/11197247/javascript-equivalent-of-jquerys-extend-method
+    instance.extend = function() {
+      for(var i=1; i<arguments.length; i++)
+          for(var key in arguments[i])
+              if(arguments[i].hasOwnProperty(key))
+                  arguments[0][key] = arguments[i][key];
+      return arguments[0];
+    };
+
+    // Source: http://stackoverflow.com/questions/5999998/how-can-i-check-if-a-javascript-variable-is-function-type.
+    instance.isFunction = function(v) {
+        var getType = {};
+        return v && getType.toString.call(v) === '[object Function]';
+    };
+
     // unmarshalValues splits two values from a single string.
     // This function is chainable to extract multiple values.
     // An object with two strings (first, second) is returned.

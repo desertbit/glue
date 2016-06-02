@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
+## 1.9.0 - 2016-06-02
+- Removed the jQuery dependency.
+
 ## 1.8.2 - 2016-05-16
 - Fixed possible race condition in websocket backend (Synchronous websocket write message and write close message).
 
