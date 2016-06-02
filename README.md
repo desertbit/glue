@@ -13,7 +13,7 @@ Feel free to contribute to this project. Please check the [TODO](TODO.md) file f
 
 ## Install
 ### Client
-The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**. It requires jQuery.
+The client javascript Glue library is located in **[client/dist/glue.js](client/dist/glue.js)**.
 
 You can use bower to install the client library:
 
@@ -113,7 +113,7 @@ socket.send(data, discardCallback);
 socket.onMessage(f);
 
 // on binds event functions to events.
-// This function is equivalent to jQuery's on method.
+// This function is equivalent to jQuery's on method syntax.
 // Following events are available:
 //  - "connected"
 //  - "connecting"
