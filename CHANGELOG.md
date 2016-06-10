@@ -1,6 +1,9 @@
 # Change Log
 All notable changes to this project will be documented in this file. This project follows the [Semantic Versioning](http://semver.org/).
 
+## 1.9.1 - 2016-06-10
+- Small improvements and fixes to prevent race conditions on calling the onClose function callback.
+
 ## 1.9.0 - 2016-06-02
 - Removed the jQuery dependency.
 

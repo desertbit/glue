@@ -28,9 +28,8 @@ type Closer struct {
 	// Channel which is closed if the closer is closed.
 	IsClosedChan chan struct{}
 
-	f        func()
-	isClosed bool
-	mutex    sync.Mutex
+	f     func()
+	mutex sync.Mutex
 }
 
 // New creates a new closer.
@@ -46,19 +45,12 @@ func New(f func()) *Closer {
 func (c *Closer) Close() {
 	// Lock the mutex
 	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	// Just return if already closed.
-	if c.isClosed {
-		// Unlock the mutex again
-		c.mutex.Unlock()
+	if c.IsClosed() {
 		return
 	}
-
-	// Update the flag
-	c.isClosed = true
-
-	// Unlock the mutex again
-	c.mutex.Unlock()
 
 	// Close the channel.
 	close(c.IsClosedChan)
@@ -69,5 +61,10 @@ func (c *Closer) Close() {
 
 // IsClosed returns a boolean whenever this closer is already closed.
 func (c *Closer) IsClosed() bool {
-	return c.isClosed
+	select {
+	case <-c.IsClosedChan:
+		return true
+	default:
+		return false
+	}
 }

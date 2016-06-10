@@ -42,7 +42,7 @@ import (
 const (
 	// Version holds the Glue Socket Protocol Version as string.
 	// This project follows the Semantic Versioning (http://semver.org/).
-	Version = "1.9.0"
+	Version = "1.9.1"
 )
 
 // Private
@@ -135,9 +135,7 @@ type Socket struct {
 
 	writeChan    chan string
 	readChan     chan string
-	isClosedChan chan struct{}
-
-	onCloseFunc OnCloseFunc
+	isClosedChan ClosedChan
 
 	pingTimer         *time.Timer
 	pingTimeout       *time.Timer
@@ -157,7 +155,7 @@ func newSocket(server *Server, bs backend.BackendSocket) *Socket {
 
 		writeChan:    bs.WriteChan(),
 		readChan:     bs.ReadChan(),
-		isClosedChan: make(chan struct{}),
+		isClosedChan: bs.ClosedChan(),
 
 		pingTimer:   time.NewTimer(pingPeriod),
 		pingTimeout: time.NewTimer(pingResponseTimeout),
@@ -166,8 +164,11 @@ func newSocket(server *Server, bs backend.BackendSocket) *Socket {
 	// Create the main channel.
 	s.mainChannel = s.Channel(mainChannelName)
 
-	// Set the event functions.
-	bs.OnClose(s.onClose)
+	// Call the on close method as soon as the socket closes.
+	go func() {
+		<-s.isClosedChan
+		s.onClose()
+	}()
 
 	// Stop the timeout again. It will be started by the ping timer.
 	s.pingTimeout.Stop()
@@ -234,8 +235,19 @@ func (s *Socket) IsClosed() bool {
 }
 
 // OnClose sets the functions which is triggered if the socket connection is closed.
+// This method can be called multiple times to bind multiple functions.
 func (s *Socket) OnClose(f OnCloseFunc) {
-	s.onCloseFunc = f
+	go func() {
+		// Recover panics and log the error.
+		defer func() {
+			if e := recover(); e != nil {
+				log.L.Errorf("glue: panic while calling onClose function: %v\n%s", e, debug.Stack())
+			}
+		}()
+
+		<-s.isClosedChan
+		f()
+	}()
 }
 
 // ClosedChan returns a channel which is non-blocking (closed)
@@ -309,9 +321,6 @@ func (s *Socket) onClose() {
 		delete(s.server.sockets, s.id)
 	}()
 
-	// Stop all goroutines for this socket by closing the isClosed channel.
-	close(s.isClosedChan)
-
 	// Clear the write channel to release blocked goroutines.
 	// The pingLoop might be blocked...
 	for i := 0; i < len(s.writeChan); i++ {
@@ -320,20 +329,6 @@ func (s *Socket) onClose() {
 		default:
 			break
 		}
-	}
-
-	// Trigger the on close event if defined.
-	if s.onCloseFunc != nil {
-		func() {
-			// Recover panics and log the error.
-			defer func() {
-				if e := recover(); e != nil {
-					log.L.Errorf("glue: panic while calling onClose function: %v\n%s", e, debug.Stack())
-				}
-			}()
-
-			s.onCloseFunc()
-		}()
 	}
 }
 

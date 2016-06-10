@@ -31,7 +31,7 @@ type BackendSocket interface {
 
 	Close()
 	IsClosed() bool
-	OnClose(f func())
+	ClosedChan() <-chan struct{}
 
 	WriteChan() chan string
 	ReadChan() chan string

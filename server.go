@@ -47,6 +47,7 @@ type Server struct {
 	options *Options
 
 	block       bool
+	blockMutex  sync.Mutex
 	onNewSocket OnNewSocketFunc
 
 	sockets      map[string]*Socket // A map holding all active current sockets.
@@ -86,7 +87,18 @@ func NewServer(o ...Options) *Server {
 
 // Block new incomming connections.
 func (s *Server) Block(b bool) {
+	s.blockMutex.Lock()
+	defer s.blockMutex.Unlock()
+
 	s.block = b
+}
+
+// IsBlocked returns a boolean whenever new incoming connections should be blocked.
+func (s *Server) IsBlocked() bool {
+	s.blockMutex.Lock()
+	defer s.blockMutex.Unlock()
+
+	return s.block
 }
 
 // OnNewSocket sets the event function which is
@@ -202,7 +214,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleOnNewSocketConnection(bs backend.BackendSocket) {
 	// Close the socket if incomming connections should be blocked.
-	if s.block {
+	if s.IsBlocked() {
 		bs.Close()
 		return
 	}

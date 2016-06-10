@@ -33,8 +33,7 @@ type Socket struct {
 	userAgent  string
 	remoteAddr string
 
-	closer  *closer.Closer
-	onClose func()
+	closer *closer.Closer
 
 	writeChan chan string
 	readChan  chan string
@@ -57,11 +56,6 @@ func newSocket(s *Server) *Socket {
 
 				delete(s.sockets, a.uid)
 			}()
-		}
-
-		// Trigger the onClose function if defined.
-		if a.onClose != nil {
-			a.onClose()
 		}
 	})
 
@@ -88,12 +82,12 @@ func (s *Socket) Close() {
 	s.closer.Close()
 }
 
-func (s *Socket) OnClose(f func()) {
-	s.onClose = f
-}
-
 func (s *Socket) IsClosed() bool {
 	return s.closer.IsClosed()
+}
+
+func (s *Socket) ClosedChan() <-chan struct{} {
+	return s.closer.IsClosedChan
 }
 
 func (s *Socket) WriteChan() chan string {

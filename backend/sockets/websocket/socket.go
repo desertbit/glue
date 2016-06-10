@@ -54,8 +54,7 @@ type Socket struct {
 	ws         *websocket.Conn
 	writeMutex sync.Mutex
 
-	closer  *closer.Closer
-	onClose func()
+	closer *closer.Closer
 
 	writeChan chan string
 	readChan  chan string
@@ -80,11 +79,6 @@ func newSocket(ws *websocket.Conn) *Socket {
 
 		// Close the socket.
 		w.ws.Close()
-
-		// Trigger the onClose function if defined.
-		if w.onClose != nil {
-			w.onClose()
-		}
 	})
 
 	return w
@@ -110,12 +104,12 @@ func (w *Socket) Close() {
 	w.closer.Close()
 }
 
-func (w *Socket) OnClose(f func()) {
-	w.onClose = f
-}
-
 func (w *Socket) IsClosed() bool {
 	return w.closer.IsClosed()
+}
+
+func (w *Socket) ClosedChan() <-chan struct{} {
+	return w.closer.IsClosedChan
 }
 
 func (w *Socket) WriteChan() chan string {

@@ -1,6 +1,6 @@
 {
   "name": "socket",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Robust Go and Javascript Socket Library",
   "main": "gulpfile.js",
   "dependencies": {
