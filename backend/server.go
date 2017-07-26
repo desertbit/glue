@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/desertbit/glue/backend/sockets/ajaxsocket"
 	"github.com/desertbit/glue/backend/sockets/websocket"
 	"github.com/desertbit/glue/log"
