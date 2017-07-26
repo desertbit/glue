@@ -22,12 +22,14 @@ package glue
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/desertbit/glue/backend"
+	"github.com/desertbit/glue/log"
 )
 
 //####################//
@@ -206,6 +208,11 @@ func (s *Server) Run() error {
 // ServeHTTP implements the HTTP Handler interface of the http package.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.bs.ServeHTTP(w, r)
+}
+
+// SetLogOutput allows to set a different output destination for the logger
+func SetLogOutput(w io.Writer) {
+	log.L.Out = w
 }
 
 //########################//
