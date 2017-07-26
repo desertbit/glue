@@ -27,7 +27,7 @@ import (
 	"github.com/desertbit/glue/backend/global"
 	"github.com/desertbit/glue/log"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/gorilla/websocket"
 )
 
