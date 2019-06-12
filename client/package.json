@@ -15,5 +15,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Roland Singer <roland.singer@desertbit.com>",
-  "license": "GPL3"
+  "license": "(MIT OR GPL3)"
 }
