@@ -10,7 +10,7 @@
   "keywords": [
     "[\"socket\"]"
   ],
-  "license": "GPL3",
+  "license": "MIT",
   "ignore": [
     "**/*",
     "!client/*",
