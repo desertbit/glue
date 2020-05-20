@@ -140,7 +140,7 @@ var newAjaxSocket = function () {
         pollXhr = postAjax(ajaxHost, pollTimeout, data, function (data) {
           pollXhr = false;
 
-          // Check if this jax request has reached the server's timeout.
+          // Check if this ajax request has reached the server's timeout.
           if (data == PollCommands.Timeout) {
               // Just start the next poll request.
               poll();
